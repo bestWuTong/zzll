@@ -1,10 +1,10 @@
-/* 本文件由 scripts/parse_questions.py 自动生成，请勿手动修改。 */
+/* 本文件由工作区根目录的 scripts/parse_questions.py 自动生成，请勿手动修改。 */
 window.QUESTIONS_DATA = {
   "meta": {
     "title": "政治理论排坑速练题库",
     "version": "1.0.0",
     "source": "超格政治理论排坑题库",
-    "generatedAt": "2026-10-14 14:10:38",
+    "generatedAt": "2026-10-14 16:28:56",
     "chapterCount": 3,
     "totalQuestions": 74
   },

@@ -109,7 +109,7 @@
     if (!CHAPTERS.length) {
       $('chapterList').innerHTML =
         '<div class="empty-state"><p class="empty-title">尚未加载题库</p>' +
-        '<p class="empty-desc">请先运行 <code>python scripts/parse_questions.py</code> 生成题库数据。</p></div>';
+        '<p class="empty-desc">题库数据缺失，请先运行题库解析脚本<br>生成 data/questions.json 后再打开页面。</p></div>';
       return;
     }
 
