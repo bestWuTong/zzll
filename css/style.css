@@ -361,17 +361,51 @@ svg { display: block; }
 .topbar-sub { font-size: 12px; color: var(--text-2); margin-top: 1px; }
 .topbar-right {
   flex: none;
+  padding: 3px 10px;
   font-size: 13px;
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
+  border-radius: 980px;
+  background-color: transparent;
   transform-origin: right center;
 }
-.topbar-right.pulse { animation: score-pulse 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* 答对瞬间：右上角比分胶囊整体闪一次绿。
+   用「整块变色 + 放大 + 光晕」而不是只改文字颜色——只在文字上做变化太小太快，
+   视线在题目上时几乎看不到。纯视觉，不阻塞跳题。 */
+.topbar-right.pulse { animation: score-pulse 0.65s cubic-bezier(0.2, 0.8, 0.2, 1); }
 
 @keyframes score-pulse {
-  0% { color: var(--green); transform: scale(1.18); }
-  55% { color: var(--green); transform: scale(1.02); }
-  100% { color: var(--text-2); transform: scale(1); }
+  0% {
+    color: #fff;
+    background-color: var(--green);
+    transform: scale(1.3);
+    box-shadow: 0 2px 12px rgba(52, 199, 89, 0.5);
+  }
+  50% {
+    color: #fff;
+    background-color: var(--green);
+    transform: scale(1.14);
+    box-shadow: 0 2px 10px rgba(52, 199, 89, 0.34);
+  }
+  75% {
+    color: var(--green);
+    background-color: var(--green-soft);
+    transform: scale(1.02);
+    box-shadow: 0 2px 6px rgba(52, 199, 89, 0);
+  }
+  100% {
+    color: var(--text-2);
+    background-color: transparent;
+    transform: scale(1);
+    box-shadow: 0 2px 6px rgba(52, 199, 89, 0);
+  }
+}
+
+/* 关闭动效偏好下的降级：去掉缩放与光晕，只保留变色（属于信息反馈，不是装饰动效） */
+@keyframes score-pulse-flat {
+  0%, 55% { color: #fff; background-color: var(--green); }
+  100% { color: var(--text-2); background-color: transparent; }
 }
 
 .text-btn {
@@ -809,4 +843,6 @@ svg { display: block; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  /* 「答对了」的绿色确认保留：只去掉缩放/光晕这类位移动效，颜色反馈照旧 */
+  .topbar-right.pulse { animation: score-pulse-flat 0.7s linear !important; }
 }
