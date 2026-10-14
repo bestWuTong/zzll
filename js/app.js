@@ -14,7 +14,6 @@
   var DATA = window.QUESTIONS_DATA || { chapters: [] };
   var CHAPTERS = Array.isArray(DATA.chapters) ? DATA.chapters : [];
   var RING_CIRC = 326.7;   /* 2πr, r = 52 */
-  var AUTO_NEXT_DELAY = 850; /* 答对后自动进入下一题的延时（毫秒） */
 
   var state = { session: null, toastTimer: null };
 
@@ -221,6 +220,14 @@
     $('quizProgress').style.width = (total ? answered / total * 100 : 0) + '%';
   }
 
+  /** 答对瞬间给比分一次绿色脉冲，作为「已判定为正确」的即时反馈 */
+  function pulseScore() {
+    var el = $('quizScore');
+    el.classList.remove('pulse');
+    void el.offsetWidth;          /* 强制重排以重播动画 */
+    el.classList.add('pulse');
+  }
+
   function renderQuestion() {
     var s = state.session;
     if (!s) return;
@@ -281,7 +288,7 @@
       fb.className = 'feedback is-correct';
       fb.innerHTML =
         '<div class="fb-head">' + icon + '<span>回答正确</span></div>' +
-        '<div class="fb-meta">正确答案：<b>' + esc(q.answerText) + '</b>，即将进入下一题…</div>';
+        '<div class="fb-meta">正确答案：<b>' + esc(q.answerText) + '</b></div>';
     } else {
       fb.className = 'feedback is-wrong';
       fb.innerHTML =
@@ -311,30 +318,22 @@
     var correct = choice === q.answer;
 
     Progress.record(q.chapterId, q.id, correct);
-    paintAnswer(q, choice);
-    updateHud();
 
-    $('btnNext').disabled = false;
-    $('btnNext').textContent = (index === s.questions.length - 1) ? '查看结果' : '下一题';
-
-    if (correct) scheduleAutoNext(s, index);
-  }
-
-  /**
-   * 答对后延时自动进入下一题。
-   * 定时器在触发时自行校验：会话未被替换、且仍停在作答时的那道题，才继续前进。
-   * 这样期间用户手动点「下一题 / 上一题」或按方向键都不会造成状态错乱。
-   */
-  function scheduleAutoNext(s, index) {
-    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
-    s.timer = setTimeout(function () {
-      s.timer = null;
-      if (state.session !== s) return;              /* 已退出本次练习 */
-      if (s.index !== index) return;                /* 用户已手动翻页 */
-      if (s.index >= s.questions.length - 1) { finishSession(); return; }
+    if (correct) {
+      /* 答对：不停顿，直接进入下一题（不展示「回答正确」过渡） */
+      clearSessionTimer();
+      if (index >= s.questions.length - 1) { finishSession(); return; }
       s.index = index + 1;
       renderQuestion();
-    }, AUTO_NEXT_DELAY);
+      pulseScore();
+      return;
+    }
+
+    /* 答错：停留在此题，展示正确答案与解析，由用户手动点「下一题」 */
+    paintAnswer(q, choice);
+    updateHud();
+    $('btnNext').disabled = false;
+    $('btnNext').textContent = (index === s.questions.length - 1) ? '查看结果' : '下一题';
   }
 
   function goNext() {
@@ -560,6 +559,10 @@
     $('qOptions').addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('.opt') : null;
       if (!btn || btn.disabled) return;
+      /* 答对会瞬间跳到下一题，若用户是双击，第二下会落在新题的同一位置，
+         等于替下一题作答。detail > 1 即「同一次连击的第 2、3 下」，直接忽略
+         （鼠标单击为 1、键盘触发的点击为 0、触屏为 1，均不受影响）。 */
+      if (e.detail > 1) return;
       chooseAnswer(btn.getAttribute('data-choice'));
     });
     $('btnNext').addEventListener('click', goNext);

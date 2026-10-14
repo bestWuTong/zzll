@@ -254,7 +254,20 @@ svg { display: block; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .topbar-sub { font-size: 12px; color: var(--text-2); margin-top: 1px; }
-.topbar-right { flex: none; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.topbar-right {
+  flex: none;
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  transform-origin: right center;
+}
+.topbar-right.pulse { animation: score-pulse 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+@keyframes score-pulse {
+  0% { color: var(--green); transform: scale(1.18); }
+  55% { color: var(--green); transform: scale(1.02); }
+  100% { color: var(--text-2); transform: scale(1); }
+}
 
 .text-btn {
   font-size: 15px; font-weight: 500; color: var(--accent);
