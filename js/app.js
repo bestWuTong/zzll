@@ -249,6 +249,11 @@
   }
 
   /* ------------------------------------------------------------ 会话 / 刷题 */
+  /**
+   * shuffleState 仅「打乱刷题」有，用于串联多组：
+   *   { size: 每组题量（0 = 全部）, used: Set<题目id> 本次系列已出过的题 }
+   * 靠它在「下一组」时跳过做过的题，做完全部后隐藏按钮。
+   */
   function startSession(opts) {
     state.session = {
       mode: opts.mode,
@@ -256,10 +261,54 @@
       questions: opts.questions,
       index: 0,
       answers: opts.questions.map(function () { return null; }),
-      addedToWrong: false
+      addedToWrong: false,
+      shuffle: opts.shuffle || null
     };
     showView('quiz');
     renderQuestion();
+  }
+
+  /** 打乱刷题：题库里还没出过的题 */
+  function shuffleRemaining(s) {
+    if (!s || s.mode !== 'random' || !s.shuffle) return [];
+    var used = s.shuffle.used;
+    return allQuestions().filter(function (q) { return !used.has(q.id); });
+  }
+
+  /** 重做一遍：同样的题目、同样的顺序，作答记录清空 */
+  function restartSession() {
+    var s = state.session;
+    if (!s) return;
+    startSession({
+      mode: s.mode,
+      title: s.title,
+      questions: s.questions,
+      shuffle: s.shuffle
+    });
+  }
+
+  /** 下一组：按相同题量再抽一组未做过的题；题目用尽时提示 */
+  function startNextShuffleGroup() {
+    var s = state.session;
+    if (!s || s.mode !== 'random' || !s.shuffle) return;
+    var remaining = shuffleRemaining(s);
+    if (!remaining.length) { toast('这个题库的题目都刷过了'); return; }
+
+    var size = s.shuffle.size;
+    var take = (size > 0) ? Math.min(size, remaining.length) : remaining.length;
+    var picked = shuffle(remaining).slice(0, take);
+    var used = s.shuffle.used;
+    picked.forEach(function (q) { used.add(q.id); });
+
+    startSession({
+      mode: 'random',
+      title: '打乱刷题 · ' + picked.length + ' 题',
+      questions: picked,
+      shuffle: { size: size, used: used }
+    });
+    toast(remaining.length > picked.length
+      ? '下一组 ' + picked.length + ' 题（还剩 ' + (remaining.length - picked.length) + ' 题）'
+      : '最后一组，已刷完这个题库的全部题目');
   }
 
   /**
@@ -484,12 +533,25 @@
         (correctOnes.length ? '' : ' disabled') + '>将答对的 ' + correctOnes.length +
         ' 题移出错题集</button>';
     } else {
+      /* 打乱刷题：还有没做过的题时，把「下一组」作为主操作 */
+      var remaining = shuffleRemaining(s).length;
+      var canNextGroup = s.mode === 'random' && remaining > 0;
+
+      if (canNextGroup) {
+        html += '<button class="btn btn-primary" type="button" data-act="next-group">' +
+          '下一组（还剩 ' + remaining + ' 题）</button>';
+      }
+
       var already = s.addedToWrong;
-      html += '<button class="btn btn-primary" type="button" data-act="add-wrong"' +
+      html += '<button class="btn ' + (canNextGroup ? 'btn-soft' : 'btn-primary') +
+        '" type="button" data-act="add-wrong"' +
         (wrongOnes.length && !already ? '' : ' disabled') + '>' +
         (already ? '已加入错题集' :
           (wrongOnes.length ? '把错题 ' + wrongOnes.length + ' 题加入错题集' : '本次无错题')) +
         '</button>';
+
+      html += '<button class="btn ' + (canNextGroup ? 'btn-ghost' : 'btn-soft') +
+        '" type="button" data-act="redo">重做一遍</button>';
       html += '<button class="btn btn-ghost" type="button" data-act="home">返回首页</button>';
     }
     actions.innerHTML = html;
@@ -658,10 +720,13 @@
       var pool = allQuestions();
       if (!pool.length) { toast('题库为空'); return; }
       var picked = clip(shuffle(pool), n);
+      var used = new Set();
+      picked.forEach(function (q) { used.add(q.id); });
       startSession({
         mode: 'random',
         title: '打乱刷题 · ' + picked.length + ' 题',
-        questions: picked
+        questions: picked,
+        shuffle: { size: n, used: used }
       });
     });
 
@@ -722,6 +787,10 @@
         state.session = null;
         renderWrong();
         showView('wrong');
+      } else if (act === 'next-group') {
+        startNextShuffleGroup();
+      } else if (act === 'redo') {
+        restartSession();
       } else if (act === 'back-wrong') {
         renderWrong();
         showView('wrong');
