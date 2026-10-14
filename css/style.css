@@ -129,7 +129,23 @@ svg { display: block; }
 .hero-stats b { color: var(--text-2); font-weight: 600; }
 
 /* ------------------------------------------------------- 题库切换下拉列表 */
-.bank-switch { position: relative; flex: none; }
+.bank-switch {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* display:flex 会盖掉 [hidden] 的 display:none，这里补回来 */
+.bank-switch[hidden] { display: none; }
+
+.bank-switch-hint {
+  font-size: 13px;
+  color: var(--text-3);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  user-select: none;
+}
 
 .bank-btn {
   display: inline-flex;
@@ -826,7 +842,12 @@ svg { display: block; }
   .app { padding: 26px 16px 56px; }
   .hero-title { font-size: 26px; }
   .hero-sub { font-size: 13px; }
-  .hero-top { gap: 10px; }
+  /* 窄屏：标题独占一行，切换器（含「切换题库：」提示）换到下一行右对齐，
+     避免提示文字把标题挤到换行 */
+  .hero-top { flex-wrap: wrap; gap: 12px; }
+  .hero-heading { flex: 1 1 100%; }
+  .bank-switch { margin-left: auto; gap: 6px; }
+  .bank-switch-hint { font-size: 12px; }
   .bank-btn { padding: 7px 10px 7px 12px; font-size: 13px; }
   .bank-btn-label { max-width: 72px; }
   .bank-menu { width: calc(100vw - 32px); }
