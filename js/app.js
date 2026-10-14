@@ -157,26 +157,16 @@
 
   /* ------------------------------------------------------------ 会话 / 刷题 */
   function startSession(opts) {
-    clearSessionTimer();
     state.session = {
       mode: opts.mode,
       title: opts.title,
       questions: opts.questions,
       index: 0,
       answers: opts.questions.map(function () { return null; }),
-      timer: null,
       addedToWrong: false
     };
     showView('quiz');
     renderQuestion();
-  }
-
-  function clearSessionTimer() {
-    var s = state.session;
-    if (s && s.timer) {
-      clearTimeout(s.timer);
-      s.timer = null;
-    }
   }
 
   /**
@@ -322,30 +312,31 @@
 
     s.answers[index] = { choice: choice };
     var correct = choice === q.answer;
+    var isLast = index >= s.questions.length - 1;
 
     Progress.record(q.chapterId, q.id, correct);
 
-    if (correct) {
-      /* 答对：不停顿，直接进入下一题（不展示「回答正确」过渡） */
-      clearSessionTimer();
-      if (index >= s.questions.length - 1) { finishSession(); return; }
+    if (correct && !isLast) {
+      /* 答对且不是最后一题：不停顿，直接进入下一题（不展示「回答正确」过渡） */
       s.index = index + 1;
       renderQuestion();
       pulseScore();
       return;
     }
 
-    /* 答错：停留在此题，展示正确答案与解析，由用户手动点「下一题」 */
+    /* 答错，或者本题就是最后一题：停留在此题，展示正确答案与解析，
+       由用户手动点「下一题 / 查看结果」。
+       最后一题答对也停下，是为了让人先看完解析再进入结果页。 */
     paintAnswer(q, choice);
     updateHud();
+    if (correct) pulseScore();
     $('btnNext').disabled = false;
-    $('btnNext').textContent = (index === s.questions.length - 1) ? '查看结果' : '下一题';
+    $('btnNext').textContent = isLast ? '查看结果' : '下一题';
   }
 
   function goNext() {
     var s = ensureSession();
     if (!s) return;
-    clearSessionTimer();
     if (!s.answers[s.index]) return;                /* 未作答不允许跳过 */
     if (s.index >= s.questions.length - 1) { finishSession(); return; }
     s.index++;
@@ -355,7 +346,6 @@
   function goPrev() {
     var s = ensureSession();
     if (!s || s.index === 0) return;
-    clearSessionTimer();
     s.index--;
     renderQuestion();
   }
@@ -581,7 +571,6 @@
           if (!window.confirm('本次练习还没做完，确定要退出吗？')) return;
         }
       }
-      clearSessionTimer();
       var backToWrong = !!(s && s.mode === 'wrong');
       state.session = null;
       if (backToWrong) { renderWrong(); showView('wrong'); }
