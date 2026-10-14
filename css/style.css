@@ -882,14 +882,15 @@ svg { display: block; }
   /* 刷题页：整屏纵向 flex，把四个按钮（正确/错误、上一题/下一题）沉到页面最下面。
      手机屏幕高、题目短时它们原本浮在中间，下方留一大片空白。
      解析用 order 排到选项之前，答错时紧贴题目；DOM 顺序不变。
-     同时收紧 .app 底部内边距，让按钮真正贴住屏幕底（留 16px 不硬顶边）。
+     同时收紧 .app 底部内边距，让按钮贴近屏幕底；底部留白 32px
+     （min-height 里扣的是 .app 上下内边距之和 26 + 32 = 58，改底部留白要同步改这里）。
      内容比一屏还高时，auto 外边距失效，按钮自然跟随内容末尾、可滚动。 */
-  body.is-quiz .app { padding-bottom: 16px; }
+  body.is-quiz .app { padding-bottom: 32px; }
   #view-quiz.is-active {
     display: flex;
     flex-direction: column;
-    min-height: calc(100vh - 42px);    /* 减掉 .app 的上下内边距（26 + 16） */
-    min-height: calc(100dvh - 42px);
+    min-height: calc(100vh - 58px);
+    min-height: calc(100dvh - 58px);
   }
   #view-quiz .quiz-body {
     flex: 1;
