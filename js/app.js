@@ -533,25 +533,25 @@
         (correctOnes.length ? '' : ' disabled') + '>将答对的 ' + correctOnes.length +
         ' 题移出错题集</button>';
     } else {
-      /* 打乱刷题：还有没做过的题时，把「下一组」作为主操作 */
+      /* 打乱刷题：还有没做过的题时给出「下一组」。
+         「下一组」「重做一遍」都用与「返回首页」相同的 btn-ghost 样式
+         （白底描边），只有「加入错题集」是强调按钮。 */
       var remaining = shuffleRemaining(s).length;
       var canNextGroup = s.mode === 'random' && remaining > 0;
 
       if (canNextGroup) {
-        html += '<button class="btn btn-primary" type="button" data-act="next-group">' +
+        html += '<button class="btn btn-ghost" type="button" data-act="next-group">' +
           '下一组（还剩 ' + remaining + ' 题）</button>';
       }
 
       var already = s.addedToWrong;
-      html += '<button class="btn ' + (canNextGroup ? 'btn-soft' : 'btn-primary') +
-        '" type="button" data-act="add-wrong"' +
+      html += '<button class="btn btn-primary" type="button" data-act="add-wrong"' +
         (wrongOnes.length && !already ? '' : ' disabled') + '>' +
         (already ? '已加入错题集' :
           (wrongOnes.length ? '把错题 ' + wrongOnes.length + ' 题加入错题集' : '本次无错题')) +
         '</button>';
 
-      html += '<button class="btn ' + (canNextGroup ? 'btn-ghost' : 'btn-soft') +
-        '" type="button" data-act="redo">重做一遍</button>';
+      html += '<button class="btn btn-ghost" type="button" data-act="redo">重做一遍</button>';
       html += '<button class="btn btn-ghost" type="button" data-act="home">返回首页</button>';
     }
     actions.innerHTML = html;
