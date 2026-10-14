@@ -13,7 +13,8 @@
 
   var DATA = window.QUESTIONS_DATA || { chapters: [] };
   var CHAPTERS = Array.isArray(DATA.chapters) ? DATA.chapters : [];
-  var RING_CIRC = 326.7; /* 2πr, r = 52 */
+  var RING_CIRC = 326.7;   /* 2πr, r = 52 */
+  var AUTO_NEXT_DELAY = 850; /* 答对后自动进入下一题的延时（毫秒） */
 
   var state = { session: null, toastTimer: null };
 
@@ -157,18 +158,41 @@
 
   /* ------------------------------------------------------------ 会话 / 刷题 */
   function startSession(opts) {
+    clearSessionTimer();
     state.session = {
       mode: opts.mode,
       title: opts.title,
       questions: opts.questions,
       index: 0,
       answers: opts.questions.map(function () { return null; }),
-      locked: false,
       timer: null,
       addedToWrong: false
     };
     showView('quiz');
     renderQuestion();
+  }
+
+  function clearSessionTimer() {
+    var s = state.session;
+    if (s && s.timer) {
+      clearTimeout(s.timer);
+      s.timer = null;
+    }
+  }
+
+  /**
+   * 会话失效时的兜底：视图还停在刷题页但会话已经不在，
+   * 直接退回首页，避免界面卡死无法操作。
+   */
+  function ensureSession() {
+    if (state.session) return state.session;
+    var quizView = $('view-quiz');
+    if (quizView && quizView.classList.contains('is-active')) {
+      renderHome();
+      showView('home');
+      toast('练习状态已重置');
+    }
+    return null;
   }
 
   function answeredCount(s) {
@@ -186,18 +210,28 @@
     return n;
   }
 
+  /** 刷新顶部比分与进度条（作答 / 翻页后都要同步） */
+  function updateHud() {
+    var s = state.session;
+    if (!s) return;
+    var total = s.questions.length;
+    var correct = correctCount(s);
+    var answered = answeredCount(s);
+    $('quizScore').innerHTML = '✓ ' + correct + ' · ✗ ' + (answered - correct);
+    $('quizProgress').style.width = (total ? answered / total * 100 : 0) + '%';
+  }
+
   function renderQuestion() {
     var s = state.session;
     if (!s) return;
     var q = s.questions[s.index];
+    if (!q) { finishSession(); return; }
     var total = s.questions.length;
     var a = s.answers[s.index];
 
     $('quizTitle').textContent = s.title;
     $('quizCounter').textContent = '第 ' + (s.index + 1) + ' / ' + total + ' 题';
-    $('quizScore').innerHTML = '✓ ' + correctCount(s) + ' · ✗ ' +
-      (answeredCount(s) - correctCount(s));
-    $('quizProgress').style.width = (answeredCount(s) / total * 100) + '%';
+    updateHud();
 
     $('qTag').textContent = q.chapterTitle
       ? q.chapterTitle + (s.mode === 'wrong' ? ' · 错题重练' : '')
@@ -265,49 +299,58 @@
   }
 
   function chooseAnswer(choice) {
-    var s = state.session;
-    if (!s || s.locked) return;
-    if (s.answers[s.index]) return;
+    var s = ensureSession();
+    if (!s) return;
+    var index = s.index;
+    var q = s.questions[index];
+    if (!q) return;
+    /* 本题已作答：直接忽略重复点击（选项此时已是禁用态） */
+    if (s.answers[index]) return;
 
-    var q = s.questions[s.index];
-    s.answers[s.index] = { choice: choice };
+    s.answers[index] = { choice: choice };
     var correct = choice === q.answer;
 
     Progress.record(q.chapterId, q.id, correct);
     paintAnswer(q, choice);
+    updateHud();
 
-    var total = s.questions.length;
-    $('quizScore').innerHTML = '✓ ' + correctCount(s) + ' · ✗ ' +
-      (answeredCount(s) - correctCount(s));
-    $('quizProgress').style.width = (answeredCount(s) / total * 100) + '%';
     $('btnNext').disabled = false;
-    $('btnNext').textContent = (s.index === total - 1) ? '查看结果' : '下一题';
+    $('btnNext').textContent = (index === s.questions.length - 1) ? '查看结果' : '下一题';
 
-    if (correct) {
-      /* 答对：短暂停留后自动进入下一题 */
-      s.locked = true;
-      $('btnPrev').disabled = true;
-      s.timer = setTimeout(function () {
-        s.locked = false;
-        goNext();
-      }, 850);
-    }
+    if (correct) scheduleAutoNext(s, index);
+  }
+
+  /**
+   * 答对后延时自动进入下一题。
+   * 定时器在触发时自行校验：会话未被替换、且仍停在作答时的那道题，才继续前进。
+   * 这样期间用户手动点「下一题 / 上一题」或按方向键都不会造成状态错乱。
+   */
+  function scheduleAutoNext(s, index) {
+    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    s.timer = setTimeout(function () {
+      s.timer = null;
+      if (state.session !== s) return;              /* 已退出本次练习 */
+      if (s.index !== index) return;                /* 用户已手动翻页 */
+      if (s.index >= s.questions.length - 1) { finishSession(); return; }
+      s.index = index + 1;
+      renderQuestion();
+    }, AUTO_NEXT_DELAY);
   }
 
   function goNext() {
-    var s = state.session;
+    var s = ensureSession();
     if (!s) return;
-    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    clearSessionTimer();
+    if (!s.answers[s.index]) return;                /* 未作答不允许跳过 */
     if (s.index >= s.questions.length - 1) { finishSession(); return; }
-    if (!s.answers[s.index]) return; /* 未作答不允许跳过 */
     s.index++;
     renderQuestion();
   }
 
   function goPrev() {
-    var s = state.session;
-    if (!s || s.locked || s.index === 0) return;
-    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    var s = ensureSession();
+    if (!s || s.index === 0) return;
+    clearSessionTimer();
     s.index--;
     renderQuestion();
   }
@@ -528,10 +571,11 @@
         if (done > 0 && done < s.questions.length) {
           if (!window.confirm('本次练习还没做完，确定要退出吗？')) return;
         }
-        if (s.timer) { clearTimeout(s.timer); s.timer = null; }
       }
+      clearSessionTimer();
+      var backToWrong = !!(s && s.mode === 'wrong');
       state.session = null;
-      if (s && s.mode === 'wrong') { renderWrong(); showView('wrong'); }
+      if (backToWrong) { renderWrong(); showView('wrong'); }
       else { renderHome(); showView('home'); }
     });
 
