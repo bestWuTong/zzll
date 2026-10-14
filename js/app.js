@@ -2,20 +2,26 @@
    政治理论排坑速练 — 应用逻辑
    视图：home（首页）/ wrong（错题集）/ quiz（刷题）/ result（结果）
    模式：chapter（章节练习）/ random（打乱刷题）/ wrong（错题集练习）
+   题库：由 window.ZZLL_BANKS 注册（data/<题库id>.js），当前题库记在浏览器缓存
+   选项：固定「正确」/「错误」，直接与题库数据里的 answer 比较
    ========================================================================== */
 
 (function () {
   'use strict';
 
   var Store = window.ZZLLStore;
-  var Wrong = Store.Wrong;
-  var Progress = Store.Progress;
 
-  var DATA = window.QUESTIONS_DATA || { chapters: [] };
-  var CHAPTERS = Array.isArray(DATA.chapters) ? DATA.chapters : [];
-  var RING_CIRC = 326.7;   /* 2πr, r = 52 */
+  var RING_CIRC = 326.7;      /* 2πr, r = 52 */
+  var ANSWER_TRUE = '正确';
+  var ANSWER_FALSE = '错误';
 
-  var state = { session: null, toastTimer: null };
+  var state = {
+    banks: [],
+    bank: null,        /* 当前题库对象 */
+    store: null,       /* 当前题库的 { Wrong, Progress } */
+    session: null,
+    toastTimer: null
+  };
 
   function $(id) { return document.getElementById(id); }
 
@@ -42,19 +48,8 @@
     return (!n || n <= 0 || n >= list.length) ? list : list.slice(0, n);
   }
 
-  function allQuestions() {
-    var out = [];
-    CHAPTERS.forEach(function (ch) {
-      (ch.questions || []).forEach(function (q) {
-        out.push({
-          id: q.id, no: q.no, stem: q.stem,
-          answer: q.answer, answerText: q.answerText,
-          explanation: q.explanation,
-          chapterId: ch.id, chapterTitle: ch.title
-        });
-      });
-    });
-    return out;
+  function contrastAnswer(answer) {
+    return answer === ANSWER_TRUE ? ANSWER_FALSE : ANSWER_TRUE;
   }
 
   function toTop() {
@@ -76,46 +71,146 @@
     el.textContent = msg;
     el.hidden = false;
     el.style.animation = 'none';
-    /* 强制重排以重播动画 */
-    void el.offsetWidth;
+    void el.offsetWidth;          /* 强制重排以重播动画 */
     el.style.animation = '';
     clearTimeout(state.toastTimer);
-    state.toastTimer = setTimeout(function () { el.hidden = true; }, 2200);
+    state.toastTimer = setTimeout(function () { el.hidden = true; }, 2400);
+  }
+
+  /* -------------------------------------------------------------- 题库管理 */
+  function loadBanks() {
+    var reg = window.ZZLL_BANKS || {};
+    var list = Object.keys(reg).map(function (k) { return reg[k]; })
+      .filter(function (b) { return b && b.id && Array.isArray(b.chapters); });
+    list.sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    return list;
+  }
+
+  function bankById(id) {
+    for (var i = 0; i < state.banks.length; i++) {
+      if (state.banks[i].id === id) return state.banks[i];
+    }
+    return null;
+  }
+
+  /** 切换当前题库：换存储实例、记住选择 */
+  function useBank(bankId) {
+    var bank = bankById(bankId) || state.banks[0] || null;
+    state.bank = bank;
+    state.store = bank ? Store.forBank(bank.id) : null;
+    if (bank) Store.Banks.select(bank.id);
+    return bank;
+  }
+
+  function bankTitle() {
+    return state.bank ? (state.bank.shortName || state.bank.name) : '';
+  }
+
+  function countQuestions(bank) {
+    if (bank.meta && bank.meta.totalQuestions) return bank.meta.totalQuestions;
+    var n = 0;
+    (bank.chapters || []).forEach(function (c) { n += (c.questions || []).length; });
+    return n;
+  }
+
+  /** 当前题库的全部题目（打平，带上章节信息） */
+  function allQuestions() {
+    var bank = state.bank;
+    if (!bank) return [];
+    var out = [];
+    (bank.chapters || []).forEach(function (ch) {
+      (ch.questions || []).forEach(function (q) {
+        out.push({
+          id: q.id, no: q.no, stem: q.stem,
+          answer: q.answer, explanation: q.explanation,
+          chapterId: ch.id, chapterTitle: ch.title
+        });
+      });
+    });
+    return out;
+  }
+
+  /* --------------------------------------------------------- 首页：题库切换 */
+  function renderBankSwitcher() {
+    var bank = state.bank;
+    $('bankBtnLabel').textContent = bank ? (bank.shortName || bank.name) : '选择题库';
+    $('bankBtn').disabled = state.banks.length < 1;
+    $('bankSwitch').hidden = state.banks.length < 2;
+
+    $('bankMenu').innerHTML = state.banks.map(function (b) {
+      var on = !!(bank && b.id === bank.id);
+      var overall = Store.forBank(b.id).Progress.overall();
+      var meta = countQuestions(b) + ' 题 · ' + (b.chapters || []).length + ' 章';
+      if (overall.answered) meta += ' · 已练 ' + overall.answered;
+      return '' +
+        '<button class="bank-item' + (on ? ' is-on' : '') + '" type="button" role="option" ' +
+          'aria-selected="' + (on ? 'true' : 'false') + '" data-bank="' + esc(b.id) + '">' +
+          '<span class="bank-item-main">' +
+            '<span class="bank-item-name">' + esc(b.name) + '</span>' +
+            '<span class="bank-item-meta">' + esc(meta) + '</span>' +
+          '</span>' +
+          '<svg class="bank-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+            'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M20 6 9 17l-5-5"></path></svg>' +
+        '</button>';
+    }).join('');
+  }
+
+  function setBankMenuOpen(open) {
+    $('bankMenu').hidden = !open;
+    $('bankBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+    $('bankBtn').classList.toggle('is-open', !!open);
+  }
+
+  function isBankMenuOpen() {
+    return !$('bankMenu').hidden;
   }
 
   /* -------------------------------------------------------------- 首页渲染 */
   function renderHome() {
-    var total = DATA.meta && DATA.meta.totalQuestions
-      ? DATA.meta.totalQuestions
-      : allQuestions().length;
-    var wrongCount = Wrong.count();
-    var overall = Progress.overall();
+    renderBankSwitcher();
+    renderChapterList();
+    renderHeroStats();
+    $('footMeta').textContent = (state.bank && state.bank.meta && state.bank.meta.generatedAt)
+      ? bankTitle() + '题库更新于 ' + state.bank.meta.generatedAt
+      : '';
+  }
+
+  function renderHeroStats() {
+    var bank = state.bank;
+    if (!bank) { $('homeStats').innerHTML = ''; return; }
+
+    var total = countQuestions(bank);
+    var wrongCount = state.store.Wrong.count();
+    var overall = state.store.Progress.overall();
 
     var stats = [
       '题库 <b>' + total + '</b> 题',
-      '<b>' + CHAPTERS.length + '</b> 个章节'
+      '<b>' + (bank.chapters || []).length + '</b> 个章节'
     ];
     if (overall.answered > 0) {
       stats.push('已练 <b>' + overall.answered + '</b> 题');
       stats.push('正确率 <b>' + Math.round(overall.rate * 100) + '%</b>');
     }
-    $('homeStats').innerHTML = stats.map(function (s) {
-      return '<span>' + s + '</span>';
-    }).join('');
+    $('homeStats').innerHTML = stats.map(function (s) { return '<span>' + s + '</span>'; }).join('');
 
     $('wrongCountText').textContent = wrongCount + ' 题';
     $('modalAllLabel').textContent = '所有题目（' + total + ' 题）';
+    $('modalSub').textContent = '从「' + bankTitle() + '」的全部题目中随机抽取';
+  }
 
-    if (!CHAPTERS.length) {
+  function renderChapterList() {
+    var bank = state.bank;
+    if (!bank) {
       $('chapterList').innerHTML =
         '<div class="empty-state"><p class="empty-title">尚未加载题库</p>' +
-        '<p class="empty-desc">题库数据缺失，请先运行题库解析脚本<br>生成 data/questions.json 后再打开页面。</p></div>';
+        '<p class="empty-desc">题库数据缺失，请先运行题库解析脚本<br>生成 data/&lt;题库&gt;.json 后再打开页面。</p></div>';
       return;
     }
 
-    $('chapterList').innerHTML = CHAPTERS.map(function (ch) {
+    $('chapterList').innerHTML = (bank.chapters || []).map(function (ch) {
       var count = (ch.questions || []).length;
-      var st = Progress.chapterStats(ch.id);
+      var st = state.store.Progress.chapterStats(ch.id);
       var meta = count + ' 题';
       if (st.answered > 0) {
         meta += ' · 已练 ' + st.answered + ' · 正确率 ' + Math.round(st.rate * 100) + '%';
@@ -130,10 +225,6 @@
           '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>' +
         '</button>';
     }).join('');
-
-    $('footMeta').textContent = (DATA.meta && DATA.meta.generatedAt)
-      ? '题库更新于 ' + DATA.meta.generatedAt
-      : '';
   }
 
   function chapterRing(st) {
@@ -199,7 +290,6 @@
     return n;
   }
 
-  /** 刷新顶部比分与进度条（作答 / 翻页后都要同步） */
   function updateHud() {
     var s = state.session;
     if (!s) return;
@@ -214,7 +304,7 @@
   function pulseScore() {
     var el = $('quizScore');
     el.classList.remove('pulse');
-    void el.offsetWidth;          /* 强制重排以重播动画 */
+    void el.offsetWidth;
     el.classList.add('pulse');
   }
 
@@ -288,14 +378,14 @@
       fb.className = 'feedback is-correct';
       fb.innerHTML =
         '<div class="fb-head">' + icon + '<span>回答正确</span></div>' +
-        '<div class="fb-meta">正确答案：<b>' + esc(q.answerText) + '</b></div>' +
+        '<div class="fb-meta">正确答案：<b>' + esc(q.answer) + '</b></div>' +
         explHTML;
     } else {
       fb.className = 'feedback is-wrong';
       fb.innerHTML =
         '<div class="fb-head">' + icon + '<span>回答错误</span></div>' +
-        '<div class="fb-meta">你的选择：<b>' + esc(choice === 'A' ? '正确' : '错误') +
-          '</b> · 正确答案：<b>' + esc(q.answerText) + '</b></div>' +
+        '<div class="fb-meta">你的选择：<b>' + esc(choice) +
+          '</b> · 正确答案：<b>' + esc(q.answer) + '</b></div>' +
         explHTML;
     }
     fb.hidden = false;
@@ -314,7 +404,7 @@
     var correct = choice === q.answer;
     var isLast = index >= s.questions.length - 1;
 
-    Progress.record(q.chapterId, q.id, correct);
+    state.store.Progress.record(q.chapterId, q.id, correct);
 
     if (correct && !isLast) {
       /* 答对且不是最后一题：不停顿，直接进入下一题（不展示「回答正确」过渡） */
@@ -373,7 +463,6 @@
     else hint = '错的比较多，建议把解析逐条过一遍。';
     $('resultHint').textContent = hint;
 
-    /* 本次答错的题 */
     var wrongOnes = [];
     s.questions.forEach(function (q, i) {
       var a = s.answers[i];
@@ -384,7 +473,6 @@
       return a && a.choice === q.answer;
     });
 
-    /* 按钮 */
     var actions = $('resultActions');
     var html = '';
 
@@ -404,7 +492,6 @@
     }
     actions.innerHTML = html;
 
-    /* 复盘列表 */
     var review = '';
     if (wrongOnes.length) {
       review = '<h3 class="review-title">本次答错的 ' + wrongOnes.length + ' 题</h3>' +
@@ -415,7 +502,6 @@
     $('resultReview').innerHTML = review;
 
     showView('result');
-    /* 环形进度动画 */
     setTimeout(function () {
       ring.style.strokeDashoffset = (RING_CIRC * (1 - rate)).toFixed(1);
     }, 60);
@@ -423,10 +509,10 @@
 
   /* ------------------------------------------------------------- 错题集页面 */
   function wrongItemHTML(q, withRemove) {
-    var isTrue = q.answer === 'A';
     var removeBtn = withRemove
       ? '<button class="remove-btn" type="button" data-remove="' + esc(q.id) + '">移除</button>'
       : '';
+    var isTrue = q.answer === ANSWER_TRUE;
     return '' +
       '<article class="wrong-item" data-id="' + esc(q.id) + '">' +
         '<div class="wrong-top">' +
@@ -436,14 +522,14 @@
         '</div>' +
         '<p class="wrong-stem">' + esc(q.stem) + '</p>' +
         '<span class="wrong-answer ' + (isTrue ? 'is-true' : 'is-false') + '">正确答案：' +
-          esc(q.answerText || (isTrue ? '正确' : '错误')) + '</span>' +
+          esc(q.answer) + '</span>' +
         '<div class="wrong-expl">' + esc(q.explanation || '本题暂无解析') + '</div>' +
       '</article>';
   }
 
   function renderWrong() {
-    var list = Wrong.all();
-    $('wrongSub').textContent = '共 ' + list.length + ' 题';
+    var list = state.store.Wrong.all();
+    $('wrongSub').textContent = bankTitle() + ' · 共 ' + list.length + ' 题';
     $('btnWrongStart').disabled = list.length === 0;
     $('btnWrongExport').disabled = list.length === 0;
     $('btnWrongClear').disabled = list.length === 0;
@@ -454,7 +540,7 @@
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' +
             '<path d="M12 3.5 20 7v5.2c0 4.4-3.2 7.4-8 8.3-4.8-.9-8-3.9-8-8.3V7l8-3.5Z"></path>' +
             '<path d="M9.2 12.2l2 2 3.6-3.9"></path></svg>' +
-          '<p class="empty-title">错题集还是空的</p>' +
+          '<p class="empty-title">「' + esc(bankTitle()) + '」的错题集还是空的</p>' +
           '<p class="empty-desc">刷完后在结果页点「加入错题集」，<br>或者在此处导入之前导出的 JSON 文件。</p>' +
         '</div>';
       return;
@@ -490,9 +576,12 @@
     reader.onload = function () {
       try {
         var payload = JSON.parse(String(reader.result));
-        var res = Wrong.importPayload(payload);
+        var res = state.store.Wrong.importPayload(payload);
         renderWrong();
-        toast('导入完成：新增 ' + res.added + ' 题，已存在 ' + res.existed + ' 题');
+        var from = res.fromBank && res.fromBank.name && res.fromBank.id !== state.bank.id
+          ? '（文件来自「' + res.fromBank.name + '」）' : '';
+        toast('导入到「' + bankTitle() + '」：新增 ' + res.added + ' 题，已存在 ' +
+          res.existed + ' 题' + from);
       } catch (err) {
         toast('导入失败：' + (err && err.message ? err.message : '文件格式不正确'));
       }
@@ -503,6 +592,29 @@
 
   /* ------------------------------------------------------------- 事件绑定 */
   function bind() {
+    /* 首页：题库切换 */
+    $('bankBtn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      setBankMenuOpen(!isBankMenuOpen());
+    });
+
+    $('bankMenu').addEventListener('click', function (e) {
+      var item = e.target.closest ? e.target.closest('.bank-item') : null;
+      if (!item) return;
+      var id = item.getAttribute('data-bank');
+      setBankMenuOpen(false);
+      if (!id || (state.bank && id === state.bank.id)) return;
+      useBank(id);
+      renderHome();
+      toast('已切换到「' + bankTitle() + '」');
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!isBankMenuOpen()) return;
+      if ($('bankSwitch').contains(e.target)) return;
+      setBankMenuOpen(false);
+    });
+
     /* 首页 */
     $('btnGoWrong').addEventListener('click', function () {
       renderWrong();
@@ -517,12 +629,12 @@
       var btn = e.target.closest ? e.target.closest('.chapter-item') : null;
       if (!btn) return;
       var cid = btn.getAttribute('data-chapter');
-      var ch = CHAPTERS.filter(function (c) { return c.id === cid; })[0];
+      var ch = (state.bank.chapters || []).filter(function (c) { return c.id === cid; })[0];
       if (!ch) return;
       var qs = (ch.questions || []).map(function (q) {
         return {
           id: q.id, no: q.no, stem: q.stem, answer: q.answer,
-          answerText: q.answerText, explanation: q.explanation,
+          explanation: q.explanation,
           chapterId: ch.id, chapterTitle: ch.title
         };
       });
@@ -546,7 +658,7 @@
       var picked = clip(shuffle(pool), n);
       startSession({
         mode: 'random',
-        title: n > 0 ? ('打乱刷题 · ' + picked.length + ' 题') : '打乱刷题 · 全部题目',
+        title: '打乱刷题 · ' + picked.length + ' 题',
         questions: picked
       });
     });
@@ -590,21 +702,21 @@
           var a = s.answers[i];
           if (a && a.choice !== q.answer) wrongOnes.push(q);
         });
-        var res = Wrong.addMany(wrongOnes, function (q) {
+        var res = state.store.Wrong.addMany(wrongOnes, function (q) {
           return { chapterId: q.chapterId, chapterTitle: q.chapterTitle };
         });
         s.addedToWrong = true;
         btn.disabled = true;
         btn.textContent = '已加入错题集';
-        toast('已加入错题集：新增 ' + res.added + ' 题，已存在 ' + res.existed + ' 题');
+        toast('已加入「' + bankTitle() + '」错题集：新增 ' + res.added + ' 题，已存在 ' + res.existed + ' 题');
       } else if (act === 'prune') {
         var ids = [];
         s.questions.forEach(function (q, i) {
           var a = s.answers[i];
           if (a && a.choice === q.answer) ids.push(q.id);
         });
-        var removed = Wrong.removeMany(ids);
-        toast('已从错题集移除 ' + removed + ' 题');
+        var removed = state.store.Wrong.removeMany(ids);
+        toast('已从「' + bankTitle() + '」错题集移除 ' + removed + ' 题');
         state.session = null;
         renderWrong();
         showView('wrong');
@@ -624,7 +736,7 @@
     });
 
     $('btnWrongStart').addEventListener('click', function () {
-      var list = Wrong.all();
+      var list = state.store.Wrong.all();
       if (!list.length) { toast('错题集为空'); return; }
       startSession({
         mode: 'wrong',
@@ -638,10 +750,10 @@
       if (!btn) return;
       var id = btn.getAttribute('data-remove');
       var item = btn.closest('.wrong-item');
-      Wrong.remove(id);
+      state.store.Wrong.remove(id);
       if (item && item.parentNode) item.parentNode.removeChild(item);
-      var left = Wrong.count();
-      $('wrongSub').textContent = '共 ' + left + ' 题';
+      var left = state.store.Wrong.count();
+      $('wrongSub').textContent = bankTitle() + ' · 共 ' + left + ' 题';
       $('btnWrongStart').disabled = left === 0;
       $('btnWrongExport').disabled = left === 0;
       $('btnWrongClear').disabled = left === 0;
@@ -650,10 +762,10 @@
     });
 
     $('btnWrongExport').addEventListener('click', function () {
-      if (!Wrong.count()) return;
-      download('政治理论错题集_' + stamp() + '.json',
-        JSON.stringify(Wrong.exportPayload(), null, 2));
-      toast('已导出 ' + Wrong.count() + ' 题');
+      if (!state.store.Wrong.count()) return;
+      download('政治理论错题集_' + bankTitle() + '_' + stamp() + '.json',
+        JSON.stringify(state.store.Wrong.exportPayload(state.bank), null, 2));
+      toast('已导出「' + bankTitle() + '」错题 ' + state.store.Wrong.count() + ' 题');
     });
 
     $('btnWrongImport').addEventListener('click', function () {
@@ -667,38 +779,32 @@
     });
 
     $('btnWrongClear').addEventListener('click', function () {
-      if (!Wrong.count()) return;
-      if (!window.confirm('确定要清空错题集（' + Wrong.count() + ' 题）吗？此操作不可撤销。')) return;
-      Wrong.clear();
+      if (!state.store.Wrong.count()) return;
+      if (!window.confirm('确定要清空「' + bankTitle() + '」错题集（' +
+        state.store.Wrong.count() + ' 题）吗？此操作不可撤销。')) return;
+      state.store.Wrong.clear();
       renderWrong();
-      toast('错题集已清空');
+      toast('「' + bankTitle() + '」错题集已清空');
     });
 
-    /* 键盘快捷键：← → 与 1 / 2 */
+    /* 键盘快捷键：← → 翻题，1 / 2 作答，Esc 关下拉 */
     document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && isBankMenuOpen()) { setBankMenuOpen(false); return; }
       if (!$('view-quiz').classList.contains('is-active')) return;
       if (e.key === 'ArrowRight' || e.key === 'Enter') { goNext(); }
       else if (e.key === 'ArrowLeft') { goPrev(); }
-      else if (e.key === '1') { chooseAnswer('A'); }
-      else if (e.key === '2') { chooseAnswer('B'); }
+      else if (e.key === '1') { chooseAnswer(ANSWER_TRUE); }
+      else if (e.key === '2') { chooseAnswer(ANSWER_FALSE); }
     });
   }
 
   /* ---------------------------------------------------------------- 启动 */
   function boot() {
-    if (!window.QUESTIONS_DATA) {
-      /* 直接以 file:// 打开时若 questions.js 缺失，尝试拉取 JSON */
-      if (window.fetch) {
-        fetch('data/questions.json')
-          .then(function (r) { return r.json(); })
-          .then(function (json) {
-            window.QUESTIONS_DATA = json;
-            CHAPTERS = json.chapters || [];
-            renderHome();
-          })
-          .catch(function () { renderHome(); });
-      }
-    }
+    state.banks = loadBanks();
+    useBank(Store.Banks.selected());
+    /* 旧版本只有一个题库，错题集/进度存在无题库维度的 key 里，搬到超格名下。
+       存储读取是懒加载的，这里搬完就可以直接渲染。 */
+    Store.Banks.migrateLegacy();
     bind();
     renderHome();
   }

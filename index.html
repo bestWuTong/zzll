@@ -20,8 +20,26 @@
   <!-- ==================== 首页 ==================== -->
   <main id="view-home" class="view is-active">
     <header class="hero">
-      <h1 class="hero-title">政治理论排坑速练</h1>
-      <p class="hero-sub">判断题专项 · 把易错点练成肌肉记忆</p>
+      <div class="hero-top">
+        <div class="hero-heading">
+          <h1 class="hero-title">政治理论排坑速练</h1>
+          <p class="hero-sub">判断题专项 · 把易错点练成肌肉记忆</p>
+        </div>
+
+        <!-- 题库切换：可展开的下拉列表 -->
+        <div class="bank-switch" id="bankSwitch">
+          <button class="bank-btn" id="bankBtn" type="button"
+                  aria-haspopup="listbox" aria-expanded="false" aria-label="切换题库">
+            <span class="bank-btn-label" id="bankBtnLabel">超格</span>
+            <svg class="bank-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 9l6 6 6-6"></path>
+            </svg>
+          </button>
+          <div class="bank-menu" id="bankMenu" role="listbox" aria-label="选择题库" hidden></div>
+        </div>
+      </div>
+
       <div class="hero-stats" id="homeStats"></div>
     </header>
 
@@ -109,10 +127,10 @@
       </div>
 
       <div class="options" id="qOptions">
-        <button class="opt" data-choice="A" type="button">
+        <button class="opt" data-choice="正确" type="button">
           <span class="opt-dot"></span><span class="opt-label">正确</span>
         </button>
-        <button class="opt" data-choice="B" type="button">
+        <button class="opt" data-choice="错误" type="button">
           <span class="opt-dot"></span><span class="opt-label">错误</span>
         </button>
       </div>
@@ -170,7 +188,8 @@
 
 <div class="toast" id="toast" hidden></div>
 
-<script src="data/questions.js"></script>
+<script src="data/chaoge.js"></script>
+<script src="data/xiaohei.js"></script>
 <script src="js/store.js"></script>
 <script src="js/app.js"></script>
 </body>
