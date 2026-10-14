@@ -424,13 +424,30 @@ svg { display: block; }
   100% { color: var(--text-2); background-color: transparent; }
 }
 
-.text-btn {
-  font-size: 15px; font-weight: 500; color: var(--accent);
-  padding: 6px 2px; border-radius: 8px;
-  transition: opacity 0.18s;
+/* 顶栏右侧的主操作按钮（错题集「开始刷题」）：描边胶囊，
+   原先只有裸文字，看着不像按钮也容易被忽略 */
+.topbar-btn {
+  flex: none;
+  padding: 7px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: 980px;
+  white-space: nowrap;
+  transition: background 0.18s, color 0.18s, border-color 0.18s, transform 0.18s;
 }
-.text-btn:disabled { color: var(--text-3); cursor: not-allowed; }
-.text-btn:not(:disabled):active { opacity: 0.5; }
+.topbar-btn:not(:disabled):hover { background: var(--accent); color: #fff; }
+.topbar-btn:not(:disabled):active { transform: scale(0.97); }
+.topbar-btn:disabled {
+  color: var(--text-3);
+  border-color: var(--line-strong);
+  background: var(--card);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
 
 /* --------------------------------------------------------------- 工具按钮行 */
 .tool-row {
@@ -842,11 +859,12 @@ svg { display: block; }
   .app { padding: 26px 16px 56px; }
   .hero-title { font-size: 26px; }
   .hero-sub { font-size: 13px; }
-  /* 窄屏：标题独占一行，切换器（含「切换题库：」提示）换到下一行右对齐，
-     避免提示文字把标题挤到换行 */
+  /* 窄屏：切换器独占第一行、右对齐，标题与副标题落到第二行。
+     右对齐同时保证下拉菜单（right:0 相对切换器）向左展开时不越出屏幕左边界。
+     PC 端（>560px）不受影响，标题与切换器仍在同一行。 */
   .hero-top { flex-wrap: wrap; gap: 12px; }
-  .hero-heading { flex: 1 1 100%; }
-  .bank-switch { margin-left: auto; gap: 6px; }
+  .bank-switch { order: 1; margin-left: auto; gap: 6px; }
+  .hero-heading { order: 2; flex: 1 1 100%; }
   .bank-switch-hint { font-size: 12px; }
   .bank-btn { padding: 7px 10px 7px 12px; font-size: 13px; }
   .bank-btn-label { max-width: 72px; }
@@ -860,6 +878,29 @@ svg { display: block; }
   .ring-rate { font-size: 36px; }
   .result-ring { width: 152px; height: 152px; }
   .topbar { padding-top: 2px; }
+
+  /* 刷题页：整屏纵向 flex，把四个按钮（正确/错误、上一题/下一题）沉到页面最下面。
+     手机屏幕高、题目短时它们原本浮在中间，下方留一大片空白。
+     解析用 order 排到选项之前，答错时紧贴题目；DOM 顺序不变。
+     同时收紧 .app 底部内边距，让按钮真正贴住屏幕底（留 16px 不硬顶边）。
+     内容比一屏还高时，auto 外边距失效，按钮自然跟随内容末尾、可滚动。 */
+  body.is-quiz .app { padding-bottom: 16px; }
+  #view-quiz.is-active {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 42px);    /* 减掉 .app 的上下内边距（26 + 16） */
+    min-height: calc(100dvh - 42px);
+  }
+  #view-quiz .quiz-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;                 /* 底部间距交给 .app 统一控制 */
+  }
+  #view-quiz .q-card { order: 1; }
+  #view-quiz .feedback { order: 2; }
+  #view-quiz .options { order: 3; margin-top: auto; }
+  #view-quiz .quiz-nav { order: 4; }
 }
 
 @media (prefers-reduced-motion: reduce) {

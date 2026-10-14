@@ -63,6 +63,8 @@
       var node = $('view-' + v);
       if (node) node.classList.toggle('is-active', v === name);
     });
+    /* 刷题页在移动端要把按钮沉到屏幕底部，需要收紧 .app 的底部内边距 */
+    document.body.classList.toggle('is-quiz', name === 'quiz');
     toTop();
   }
 
