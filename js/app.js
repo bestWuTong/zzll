@@ -284,23 +284,29 @@
       ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>'
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>';
 
+    /* 解析不分对错一律展示：答对会瞬间跳题，回看时同样要能看到解析，
+       便于判断某题是「真会」还是「碰巧选对」 */
+    var explHTML =
+      '<div class="fb-expl">' +
+        '<div class="fb-expl-label">解析</div>' +
+        '<div class="fb-expl-text' + (q.explanation ? '' : ' is-empty') + '">' +
+          esc(q.explanation || '本题暂无解析') +
+        '</div>' +
+      '</div>';
+
     if (isCorrect) {
       fb.className = 'feedback is-correct';
       fb.innerHTML =
         '<div class="fb-head">' + icon + '<span>回答正确</span></div>' +
-        '<div class="fb-meta">正确答案：<b>' + esc(q.answerText) + '</b></div>';
+        '<div class="fb-meta">正确答案：<b>' + esc(q.answerText) + '</b></div>' +
+        explHTML;
     } else {
       fb.className = 'feedback is-wrong';
       fb.innerHTML =
         '<div class="fb-head">' + icon + '<span>回答错误</span></div>' +
         '<div class="fb-meta">你的选择：<b>' + esc(choice === 'A' ? '正确' : '错误') +
           '</b> · 正确答案：<b>' + esc(q.answerText) + '</b></div>' +
-        '<div class="fb-expl">' +
-          '<div class="fb-expl-label">解析</div>' +
-          '<div class="fb-expl-text' + (q.explanation ? '' : ' is-empty') + '">' +
-            esc(q.explanation || '本题暂无解析') +
-          '</div>' +
-        '</div>';
+        explHTML;
     }
     fb.hidden = false;
   }
