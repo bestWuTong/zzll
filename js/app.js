@@ -1054,6 +1054,38 @@
   }
 
   /* ---------------------------------------------------------------- 启动 */
+  /** 题库数据是否真的可用：当前题库存在、有章节、且每章都有题目 */
+  function bankDataReady() {
+    var bank = state.bank;
+    if (!bank || !bank.chapters || !bank.chapters.length) return false;
+    for (var i = 0; i < bank.chapters.length; i++) {
+      if (!bank.chapters[i].questions || !bank.chapters[i].questions.length) return false;
+    }
+    return true;
+  }
+
+  /**
+   * 撤掉启动遮罩的时机 = 题库数据就绪 + 首页已经绘制完成。
+   * - 数据没就绪时短暂轮询（最多 ~3s），超时也放行，避免永远卡在遮罩上
+   * - 双 rAF 等一帧，确保 renderHome() 的结果真的画上屏了，
+   *   否则遮罩淡出的瞬间会看到内容「弹出来」
+   * - 后台标签页不触发 rAF，另用 setTimeout 兜底
+   */
+  function finishBoot() {
+    var tries = 0;
+    var fired = false;
+    function go() {
+      if (fired) return;
+      fired = true;
+      if (window.hideBoot) window.hideBoot();
+    }
+    (function wait() {
+      if (!bankDataReady() && tries++ < 60) { setTimeout(wait, 50); return; }
+      requestAnimationFrame(function () { requestAnimationFrame(go); });
+      setTimeout(go, 150);
+    })();
+  }
+
   function boot() {
     state.banks = loadBanks();
     useBank(Store.Banks.selected());
@@ -1065,8 +1097,8 @@
     watchSystemTheme();
     bind();
     renderHome();
-    /* 首页已经渲染好，撤掉启动遮罩（最短展示时长由 hideBoot 内部保证） */
-    if (window.hideBoot) window.hideBoot();
+    /* 题库数据就绪 + 首页绘制完成后，才撤掉启动遮罩 */
+    finishBoot();
   }
 
   if (document.readyState === 'loading') {

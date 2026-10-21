@@ -50,11 +50,9 @@
 </head>
 <body>
 
-<!-- 启动遮罩：app.js 初始化完成后淡出（带最短展示时长，避免快速加载时一闪而过） -->
+<!-- 启动遮罩：纯 CSS 绘制（不含图片请求），app.js 确认题库数据就绪后淡出 -->
 <div class="boot" id="boot" aria-hidden="true">
-  <div class="boot-mark">
-    <img src="assets/apple-touch-icon.png" alt="" width="76" height="76">
-  </div>
+  <div class="boot-spinner"></div>
   <p class="boot-name">政治理论排坑速练</p>
 </div>
 

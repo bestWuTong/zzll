@@ -71,8 +71,9 @@ html[data-theme="dark"] {
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 /* --------------------------------------------------------------- 启动遮罩
-   进入页面时盖住首屏，等 app.js 初始化完再把 is-done 加上淡出。
-   放在 HTML 里而不是 JS 创建，才能从首帧就挡住半渲染的首页。 */
+   进入页面时盖住首屏，等题库数据就绪、首页渲染完成再把 is-done 加上淡出。
+   放在 HTML 里而不是 JS 创建，才能从首帧就挡住半渲染的首页。
+   纯 CSS 绘制（不引图片），避免图标本身成为额外的加载等待。 */
 .boot {
   position: fixed;
   inset: 0;
@@ -81,7 +82,7 @@ html[data-theme="dark"] {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 18px;
   background: var(--bg);
   opacity: 1;
   transition: opacity 0.3s ease, visibility 0.3s;
@@ -89,31 +90,16 @@ html[data-theme="dark"] {
 .boot.is-done { opacity: 0; visibility: hidden; }
 .boot[hidden] { display: none; }
 
-.boot-mark { position: relative; width: 76px; height: 76px; }
-.boot-mark img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 22%;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
-  animation: boot-breathe 1.9s ease-in-out infinite;
-}
-/* 绕着图标转的一段圆弧，作为「正在加载」的信号 */
-.boot-mark::after {
-  content: '';
-  position: absolute;
-  inset: -11px;
+.boot-spinner {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 2.5px solid var(--line-strong);
   border-top-color: var(--accent);
   border-right-color: var(--accent);
-  animation: boot-spin 0.9s linear infinite;
+  animation: boot-spin 0.8s linear infinite;
 }
 @keyframes boot-spin { to { transform: rotate(360deg); } }
-@keyframes boot-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
 
 .boot-name {
   margin: 0;
