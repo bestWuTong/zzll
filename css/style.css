@@ -378,6 +378,27 @@ svg { display: block; }
   color: var(--text-3);
 }
 
+/* 首页最下方的小按钮：清除当前题库的练习记录 */
+.foot-clear {
+  display: block;
+  margin: 16px auto 0;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 980px;
+  transition: color 0.18s, border-color 0.18s, background 0.18s, transform 0.18s;
+}
+.foot-clear:hover {
+  color: var(--red);
+  border-color: rgba(255, 59, 48, 0.38);
+  background: var(--red-soft);
+}
+.foot-clear:active { transform: scale(0.97); }
+.foot-clear:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* --------------------------------------------------------------- 顶部导航条 */
 .topbar {
   display: flex;

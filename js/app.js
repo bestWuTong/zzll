@@ -303,6 +303,10 @@
 
     $('wrongCountText').textContent = wrongCount + ' 题';
     $('modalSub').textContent = '从「' + bankTitle() + '」的全部题目中随机抽取';
+
+    /* 没有练习记录时「清除练习记录」置灰 */
+    var recorded = overall.answered > 0 || Object.keys(state.store.Stats.all()).length > 0;
+    if ($('btnClearRecord')) $('btnClearRecord').disabled = !recorded;
   }
 
   function renderChapterList() {
@@ -366,10 +370,35 @@
       index: 0,
       answers: opts.questions.map(function () { return null; }),
       addedToWrong: false,
-      shuffle: opts.shuffle || null
+      shuffle: opts.shuffle || null,
+      chapterId: opts.chapterId || null      /* 章节模式才有，用于「下一节」 */
     };
     showView('quiz');
     renderQuestion();
+  }
+
+  /** 开始某个章节的练习 */
+  function startChapter(ch) {
+    if (!ch) return;
+    var qs = (ch.questions || []).map(function (q) {
+      return {
+        id: q.id, no: q.no, stem: q.stem, answer: q.answer,
+        explanation: q.explanation,
+        chapterId: ch.id, chapterTitle: ch.title
+      };
+    });
+    if (!qs.length) { toast('该章节暂无题目'); return; }
+    startSession({ mode: 'chapter', title: ch.title, questions: qs, chapterId: ch.id });
+  }
+
+  /** 当前章节的下一节（最后一节返回 null） */
+  function nextChapterOf(s) {
+    if (!s || s.mode !== 'chapter' || !s.chapterId) return null;
+    var chapters = (state.bank && state.bank.chapters) || [];
+    for (var i = 0; i < chapters.length; i++) {
+      if (chapters[i].id === s.chapterId) return chapters[i + 1] || null;
+    }
+    return null;
   }
 
   /** 打乱刷题：题库里还没出过的题 */
@@ -413,7 +442,8 @@
       mode: s.mode,
       title: s.title,
       questions: s.questions,
-      shuffle: s.shuffle
+      shuffle: s.shuffle,
+      chapterId: s.chapterId
     });
   }
 
@@ -666,14 +696,18 @@
         ' 题移出错题集</button>';
     } else {
       /* 打乱刷题：还有没做过的题时给出「下一组」。
-         「下一组」「重做一遍」都用与「返回首页」相同的 btn-ghost 样式
+         「下一节」「下一组」「重做一遍」都用与「返回首页」相同的 btn-ghost 样式
          （白底描边），只有「加入错题集」是强调按钮。 */
       var remaining = shuffleRemaining(s).length;
       var canNextGroup = s.mode === 'random' && remaining > 0;
+      var nextChapter = nextChapterOf(s);
 
       if (canNextGroup) {
         html += '<button class="btn btn-ghost" type="button" data-act="next-group">' +
           '下一组（还剩 ' + remaining + ' 题）</button>';
+      } else if (nextChapter) {
+        html += '<button class="btn btn-ghost" type="button" data-act="next-chapter" ' +
+          'title="' + esc(nextChapter.title) + '">下一节</button>';
       }
 
       var already = s.addedToWrong;
@@ -821,6 +855,24 @@
       showView('wrong');
     });
 
+    /* 清除练习记录：只清当前题库的「练习」数据（答对次数 + 章节进度/正确率），
+       不碰错题集，也不碰题库选择与主题 */
+    $('btnClearRecord').addEventListener('click', function () {
+      if (!state.store) return;
+      var name = bankTitle();
+      var answered = state.store.Progress.overall().answered;
+      var counted = Object.keys(state.store.Stats.all()).length;
+      if (!answered && !counted) { toast('「' + name + '」还没有练习记录'); return; }
+      if (!window.confirm(
+        '清除「' + name + '」的练习记录？\n\n' +
+        '会清空：每题答对次数、各章节正确率与已练进度。\n' +
+        '错题集不受影响。此操作不可撤销。')) return;
+      state.store.Stats.reset();
+      state.store.Progress.reset();
+      renderHome();
+      toast('已清除「' + name + '」的练习记录');
+    });
+
     $('btnShuffle').addEventListener('click', function () {
       /* 每次打开都回到默认：勾选「优先推送答对次数最少的题目」 */
       $('optPriority').checked = true;
@@ -832,16 +884,7 @@
       if (!btn) return;
       var cid = btn.getAttribute('data-chapter');
       var ch = (state.bank.chapters || []).filter(function (c) { return c.id === cid; })[0];
-      if (!ch) return;
-      var qs = (ch.questions || []).map(function (q) {
-        return {
-          id: q.id, no: q.no, stem: q.stem, answer: q.answer,
-          explanation: q.explanation,
-          chapterId: ch.id, chapterTitle: ch.title
-        };
-      });
-      if (!qs.length) { toast('该章节暂无题目'); return; }
-      startSession({ mode: 'chapter', title: ch.title, questions: qs });
+      startChapter(ch);
     });
 
     /* 打乱刷题弹窗 */
@@ -928,6 +971,8 @@
         showView('wrong');
       } else if (act === 'next-group') {
         startNextShuffleGroup();
+      } else if (act === 'next-chapter') {
+        startChapter(nextChapterOf(s));
       } else if (act === 'redo') {
         restartSession();
       } else if (act === 'back-wrong') {
