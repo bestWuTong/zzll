@@ -86,6 +86,7 @@
   function createBankStore(bankId) {
     var wrongKey = 'zzll.wrong.' + bankId + '.v1';
     var progressKey = 'zzll.progress.' + bankId + '.v1';
+    var correctKey = 'zzll.correct.' + bankId + '.v1';
 
     var Wrong = {
       key: wrongKey,
@@ -257,7 +258,53 @@
       }
     };
 
-    return { bankId: bankId, Wrong: Wrong, Progress: Progress };
+    /* 每题答对次数：{ <题目id>: 次数 }。
+       用于「优先推送答对次数最少的题目」——次数越少说明越生疏。
+       与 Progress（章节维度）分开存，因为它按题目累计，不含章节概念。 */
+    var Stats = {
+      key: correctKey,
+
+      all: function () {
+        var m = readJSON(correctKey, {});
+        return m && typeof m === 'object' && !Array.isArray(m) ? m : {};
+      },
+
+      get: function (questionId) {
+        return this.all()[questionId] || 0;
+      },
+
+      bump: function (questionId) {
+        if (!questionId) return;
+        var m = this.all();
+        m[questionId] = (m[questionId] || 0) + 1;
+        writeJSON(correctKey, m);
+      },
+
+      reset: function () {
+        writeJSON(correctKey, {});
+      },
+
+      /**
+       * 一次性播种：老用户的进度里记着「哪些题答对过」，但没有次数。
+       * 首次使用本功能时，把这些题按「答对 1 次」补进去，
+       * 避免历史做过的题全被当成 0 次而优先推送一遍。
+       * 已经初始化过（值存在，哪怕是空对象）就跳过。
+       */
+      seedFromProgress: function () {
+        if (readJSON(correctKey, null) !== null) return false;
+        var prog = Progress.all();
+        var seed = {};
+        Object.keys(prog).forEach(function (ch) {
+          Object.keys(prog[ch].correct || {}).forEach(function (qid) {
+            seed[qid] = 1;
+          });
+        });
+        writeJSON(correctKey, seed);
+        return true;
+      }
+    };
+
+    return { bankId: bankId, Wrong: Wrong, Progress: Progress, Stats: Stats };
   }
 
   /* --------------------------------------------------------------- 题库选择 */

@@ -210,10 +210,21 @@
       <h3>打乱刷题</h3>
       <p id="modalSub">从全部题目中随机抽取</p>
     </div>
+
+    <label class="modal-check">
+      <input type="checkbox" id="optPriority" checked>
+      <span class="mc-box" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+      </span>
+      <span class="mc-text">优先推送答对次数最少的题目</span>
+    </label>
+
+    <p class="modal-note">选择每一组的题目数量</p>
     <div class="modal-options">
-      <button class="modal-opt" data-count="10" type="button"><span>10 题</span><em>快速热身</em></button>
-      <button class="modal-opt" data-count="20" type="button"><span>20 题</span><em>一组常规练习</em></button>
-      <button class="modal-opt" data-count="0" type="button"><span id="modalAllLabel">所有题目</span><em>全部打乱，一次刷完</em></button>
+      <button class="modal-opt" data-count="5" type="button"><span>5 题</span><em>快速热身</em></button>
+      <button class="modal-opt" data-count="10" type="button"><span>10 题</span><em>一组常规练习</em></button>
+      <button class="modal-opt" data-count="20" type="button"><span>20 题</span><em>一组强化练习</em></button>
     </div>
     <button class="modal-cancel" data-close="1" type="button">取消</button>
   </div>

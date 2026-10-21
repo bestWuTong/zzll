@@ -204,6 +204,7 @@
     var bank = bankById(bankId) || state.banks[0] || null;
     state.bank = bank;
     state.store = bank ? Store.forBank(bank.id) : null;
+    if (state.store) state.store.Stats.seedFromProgress();
     if (bank) Store.Banks.select(bank.id);
     return bank;
   }
@@ -301,7 +302,6 @@
     $('homeStats').innerHTML = stats.map(function (s) { return '<span>' + s + '</span>'; }).join('');
 
     $('wrongCountText').textContent = wrongCount + ' 题';
-    $('modalAllLabel').textContent = '所有题目（' + total + ' 题）';
     $('modalSub').textContent = '从「' + bankTitle() + '」的全部题目中随机抽取';
   }
 
@@ -379,6 +379,32 @@
     return allQuestions().filter(function (q) { return !used.has(q.id); });
   }
 
+  /**
+   * 从候选池里取 n 题。
+   * priority=true 时按「答对次数最少优先」：先按次数分桶，
+   * 从 0 次桶开始依次取（桶内随机），所以生疏的题会先出现。
+   */
+  function pickQuestions(pool, n, priority) {
+    if (!n || n <= 0) return shuffle(pool);
+    if (!priority) return clip(shuffle(pool), n);
+
+    var counts = state.store.Stats.all();
+    var buckets = {};
+    pool.forEach(function (q) {
+      var c = counts[q.id] || 0;
+      if (!buckets[c]) buckets[c] = [];
+      buckets[c].push(q);
+    });
+
+    var keys = Object.keys(buckets).map(Number).sort(function (a, b) { return a - b; });
+    var out = [];
+    for (var i = 0; i < keys.length && out.length < n; i++) {
+      var group = shuffle(buckets[keys[i]]);
+      for (var j = 0; j < group.length && out.length < n; j++) out.push(group[j]);
+    }
+    return out;
+  }
+
   /** 重做一遍：同样的题目、同样的顺序，作答记录清空 */
   function restartSession() {
     var s = state.session;
@@ -399,8 +425,9 @@
     if (!remaining.length) { toast('这个题库的题目都刷过了'); return; }
 
     var size = s.shuffle.size;
-    var take = (size > 0) ? Math.min(size, remaining.length) : remaining.length;
-    var picked = shuffle(remaining).slice(0, take);
+    var priority = s.shuffle.priority;
+    var take = Math.min(size, remaining.length);
+    var picked = pickQuestions(remaining, take, priority);
     var used = s.shuffle.used;
     picked.forEach(function (q) { used.add(q.id); });
 
@@ -408,7 +435,7 @@
       mode: 'random',
       title: '打乱刷题 · ' + picked.length + ' 题',
       questions: picked,
-      shuffle: { size: size, used: used }
+      shuffle: { size: size, used: used, priority: priority }
     });
     toast(remaining.length > picked.length
       ? '下一组 ' + picked.length + ' 题（还剩 ' + (remaining.length - picked.length) + ' 题）'
@@ -560,6 +587,7 @@
     var isLast = index >= s.questions.length - 1;
 
     state.store.Progress.record(q.chapterId, q.id, correct);
+    if (correct) state.store.Stats.bump(q.id);          /* 累计每题答对次数 */
 
     if (correct && !isLast) {
       /* 答对且不是最后一题：不停顿，直接进入下一题（不展示「回答正确」过渡） */
@@ -794,6 +822,8 @@
     });
 
     $('btnShuffle').addEventListener('click', function () {
+      /* 每次打开都回到默认：勾选「优先推送答对次数最少的题目」 */
+      $('optPriority').checked = true;
       $('shuffleModal').hidden = false;
     });
 
@@ -824,17 +854,18 @@
       var opt = e.target.closest ? e.target.closest('.modal-opt') : null;
       if (!opt) return;
       var n = parseInt(opt.getAttribute('data-count'), 10);
+      var priority = !!($('optPriority') && $('optPriority').checked);
       modal.hidden = true;
       var pool = allQuestions();
       if (!pool.length) { toast('题库为空'); return; }
-      var picked = clip(shuffle(pool), n);
+      var picked = pickQuestions(pool, n, priority);
       var used = new Set();
       picked.forEach(function (q) { used.add(q.id); });
       startSession({
         mode: 'random',
         title: '打乱刷题 · ' + picked.length + ' 题',
         questions: picked,
-        shuffle: { size: n, used: used }
+        shuffle: { size: n, used: used, priority: priority }
       });
     });
 
