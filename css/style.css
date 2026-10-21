@@ -70,6 +70,59 @@ html[data-theme="dark"] {
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* --------------------------------------------------------------- 启动遮罩
+   进入页面时盖住首屏，等 app.js 初始化完再把 is-done 加上淡出。
+   放在 HTML 里而不是 JS 创建，才能从首帧就挡住半渲染的首页。 */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: var(--bg);
+  opacity: 1;
+  transition: opacity 0.3s ease, visibility 0.3s;
+}
+.boot.is-done { opacity: 0; visibility: hidden; }
+.boot[hidden] { display: none; }
+
+.boot-mark { position: relative; width: 76px; height: 76px; }
+.boot-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 22%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+  animation: boot-breathe 1.9s ease-in-out infinite;
+}
+/* 绕着图标转的一段圆弧，作为「正在加载」的信号 */
+.boot-mark::after {
+  content: '';
+  position: absolute;
+  inset: -11px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  animation: boot-spin 0.9s linear infinite;
+}
+@keyframes boot-spin { to { transform: rotate(360deg); } }
+@keyframes boot-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.boot-name {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-3);
+}
+
 html, body {
   margin: 0;
   padding: 0;

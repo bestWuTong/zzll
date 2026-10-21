@@ -1065,6 +1065,8 @@
     watchSystemTheme();
     bind();
     renderHome();
+    /* 首页已经渲染好，撤掉启动遮罩（最短展示时长由 hideBoot 内部保证） */
+    if (window.hideBoot) window.hideBoot();
   }
 
   if (document.readyState === 'loading') {

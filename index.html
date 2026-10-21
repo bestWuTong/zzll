@@ -30,9 +30,33 @@
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', theme === 'dark' ? '#242428' : '#f5f5f7');
   })();
+
+  /* 启动遮罩：记录计时起点，并提供隐藏方法。
+     最短展示 350ms，避免本地快速加载时遮罩一闪而过反而更难看；
+     另有 8s 兜底——万一脚本加载失败，也不会永远卡在遮罩上。 */
+  window.__bootAt = Date.now();
+  window.hideBoot = function () {
+    var el = document.getElementById('boot');
+    if (!el || el.__hidden) return;
+    el.__hidden = true;
+    var wait = Math.max(0, 350 - (Date.now() - window.__bootAt));
+    setTimeout(function () {
+      el.classList.add('is-done');
+      setTimeout(function () { el.hidden = true; }, 320);
+    }, wait);
+  };
+  setTimeout(window.hideBoot, 8000);
 </script>
 </head>
 <body>
+
+<!-- 启动遮罩：app.js 初始化完成后淡出（带最短展示时长，避免快速加载时一闪而过） -->
+<div class="boot" id="boot" aria-hidden="true">
+  <div class="boot-mark">
+    <img src="assets/apple-touch-icon.png" alt="" width="76" height="76">
+  </div>
+  <p class="boot-name">政治理论排坑速练</p>
+</div>
 
 <div class="app">
 
