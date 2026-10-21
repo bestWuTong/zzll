@@ -32,28 +32,41 @@
     Helvetica, Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #000000;
-    --bg-elevated: #1c1c1e;
-    --card: #1c1c1e;
-    --text: #f5f5f7;
-    --text-2: #a1a1a6;
-    --text-3: #8e8e93;
-    --line: rgba(255, 255, 255, 0.10);
-    --line-strong: rgba(255, 255, 255, 0.18);
-    --accent: #0a84ff;
-    --accent-soft: rgba(10, 132, 255, 0.16);
-    --green: #30d158;
-    --green-soft: rgba(48, 209, 88, 0.16);
-    --red: #ff453a;
-    --red-soft: rgba(255, 69, 58, 0.16);
-    --orange: #ffd60a;
-    --orange-soft: rgba(255, 214, 10, 0.16);
-    --shadow-1: none;
-    --shadow-2: 0 2px 10px rgba(0, 0, 0, 0.5);
-  }
+/* 暗色主题：由 <html data-theme="dark"> 决定（JS 在首帧前设置，避免闪白）。
+   刻意不用纯黑：背景抬到 #242428、卡片用更浅一档做层次，
+   文字降到 #e8e8ed。纯黑底 + #f5f5f7 近白字的对比过强，长时间看会觉得刺眼。 */
+html[data-theme="dark"] {
+  --bg: #242428;
+  --bg-elevated: #2f2f34;
+  --card: #2f2f34;
+  --text: #e8e8ed;
+  --text-2: #a6a6af;
+  --text-3: #85858e;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.17);
+  --accent: #0a84ff;
+  --accent-soft: rgba(10, 132, 255, 0.18);
+  --green: #30d158;
+  --green-soft: rgba(48, 209, 88, 0.16);
+  --red: #ff453a;
+  --red-soft: rgba(255, 69, 58, 0.16);
+  --orange: #ffd60a;
+  --orange-soft: rgba(255, 214, 10, 0.16);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.24), 0 6px 20px rgba(0, 0, 0, 0.20);
+  --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.30), 0 14px 40px rgba(0, 0, 0, 0.34);
+  color-scheme: dark;
 }
+
+/* ------------------------------------------------- 主题切换的圆形遮罩动画
+   Telegram / Material 同款：新主题以点击位置为圆心扩散露出。
+   关掉默认的整页交叉淡入，让 ::view-transition-new(root) 只受 clip-path 控制。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -99,6 +112,33 @@ svg { display: block; }
 }
 .hero-heading { min-width: 0; }
 
+/* 右上角工具区：题库切换 + 暗色模式切换。作为下拉菜单的定位容器。 */
+.hero-tools {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-btn {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  box-shadow: var(--shadow-1);
+  transition: color 0.18s, border-color 0.18s, background 0.18s, transform 0.18s;
+}
+.theme-btn svg { width: 18px; height: 18px; }
+.theme-btn:hover { color: var(--accent); border-color: var(--line-strong); }
+.theme-btn:active { transform: scale(0.92); }
+
 .hero-title {
   margin: 0;
   font-size: 34px;
@@ -130,7 +170,6 @@ svg { display: block; }
 
 /* ------------------------------------------------------- 题库切换下拉列表 */
 .bank-switch {
-  position: relative;
   flex: none;
   display: flex;
   align-items: center;
@@ -859,11 +898,14 @@ svg { display: block; }
   .app { padding: 26px 16px 56px; }
   .hero-title { font-size: 26px; }
   .hero-sub { font-size: 13px; }
-  /* 窄屏：切换器独占第一行、右对齐，标题与副标题落到第二行。
-     右对齐同时保证下拉菜单（right:0 相对切换器）向左展开时不越出屏幕左边界。
-     PC 端（>560px）不受影响，标题与切换器仍在同一行。 */
+  /* 窄屏：工具区（题库切换 + 主题按钮）独占第一行、右对齐，
+     标题与副标题落到第二行。右对齐同时保证下拉菜单（right:0 相对切换器）
+     向左展开时不越出屏幕左边界。PC 端（>560px）三者仍在同一行。 */
   .hero-top { flex-wrap: wrap; gap: 12px; }
-  .bank-switch { order: 1; margin-left: auto; gap: 6px; }
+  .hero-tools { order: 1; margin-left: auto; gap: 8px; }
+  .theme-btn { width: 32px; height: 32px; }
+  .theme-btn svg { width: 16px; height: 16px; }
+  .bank-switch { gap: 6px; }
   .hero-heading { order: 2; flex: 1 1 100%; }
   .bank-switch-hint { font-size: 12px; }
   .bank-btn { padding: 7px 10px 7px 12px; font-size: 13px; }

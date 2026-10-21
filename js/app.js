@@ -79,6 +79,110 @@
     state.toastTimer = setTimeout(function () { el.hidden = true; }, 2400);
   }
 
+  /* -------------------------------------------------------- 主题（暗色/浅色）
+     选择存在 zzll.theme.v1；没存过就跟随系统偏好（首帧前的内联脚本已处理初始值）。
+     切换用 View Transitions 做 Telegram 同款的圆形遮罩扩散动画。 */
+  var THEME_KEY = 'zzll.theme.v1';
+  var ICON_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path></svg>';
+  var ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.1"></circle>' +
+    '<path d="M12 2.6v2.3M12 19.1v2.3M4.5 4.5l1.6 1.6M17.9 17.9l1.6 1.6M2.6 12h2.3M19.1 12h2.3' +
+    'M4.5 19.5l1.6-1.6M17.9 6.1l1.6-1.6"></path></svg>';
+
+  function savedTheme() {
+    try {
+      var v = window.localStorage.getItem(THEME_KEY);
+      return v === 'dark' || v === 'light' ? v : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function currentTheme() {
+    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  function renderThemeBtn() {
+    var btn = $('themeBtn');
+    if (!btn) return;
+    var dark = currentTheme() === 'dark';
+    var label = dark ? '切换到浅色模式' : '切换到暗色模式';
+    btn.innerHTML = dark ? ICON_SUN : ICON_MOON;
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+  }
+
+  /** 同步浏览器地址栏配色，直接取计算后的 --bg，避免和 CSS 两处维护 */
+  function syncThemeColor() {
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (!meta) return;
+    var bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+    if (bg) meta.setAttribute('content', bg);
+  }
+
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    renderThemeBtn();
+    syncThemeColor();
+  }
+
+  function toggleTheme(evt) {
+    var next = currentTheme() === 'dark' ? 'light' : 'dark';
+    try { window.localStorage.setItem(THEME_KEY, next); } catch (e) { /* 隐私模式忽略 */ }
+
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || typeof document.startViewTransition !== 'function') {
+      setTheme(next);
+      return;
+    }
+
+    /* 圆心取点击位置；键盘触发（无坐标）时退回按钮中心 */
+    var x, y;
+    if (evt && typeof evt.clientX === 'number' && (evt.clientX || evt.clientY)) {
+      x = evt.clientX;
+      y = evt.clientY;
+    } else {
+      var rect = $('themeBtn').getBoundingClientRect();
+      x = rect.left + rect.width / 2;
+      y = rect.top + rect.height / 2;
+    }
+    /* 半径取到最远角，保证圆形遮罩能铺满整屏 */
+    var radius = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    );
+
+    var vt = document.startViewTransition(function () { setTheme(next); });
+    vt.ready.then(function () {
+      document.documentElement.animate(
+        {
+          clipPath: [
+            'circle(0px at ' + x + 'px ' + y + 'px)',
+            'circle(' + radius + 'px at ' + x + 'px ' + y + 'px)'
+          ]
+        },
+        {
+          duration: 560,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          pseudoElement: '::view-transition-new(root)'
+        }
+      );
+    }).catch(function () { /* 过渡被中断，忽略 */ });
+  }
+
+  /** 没显式选过主题时，跟随系统变化 */
+  function watchSystemTheme() {
+    if (!window.matchMedia) return;
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onChange = function (e) {
+      if (savedTheme()) return;          /* 用户已显式选择，不覆盖 */
+      setTheme(e.matches ? 'dark' : 'light');
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+
   /* -------------------------------------------------------------- 题库管理 */
   function loadBanks() {
     var reg = window.ZZLL_BANKS || {};
@@ -656,6 +760,9 @@
 
   /* ------------------------------------------------------------- 事件绑定 */
   function bind() {
+    /* 暗色模式切换 */
+    $('themeBtn').addEventListener('click', toggleTheme);
+
     /* 首页：题库切换 */
     $('bankBtn').addEventListener('click', function (e) {
       e.stopPropagation();
@@ -675,7 +782,8 @@
 
     document.addEventListener('click', function (e) {
       if (!isBankMenuOpen()) return;
-      if ($('bankSwitch').contains(e.target)) return;
+      /* 菜单现在是工具区的子元素，不能只判断切换器 */
+      if ($('bankSwitch').contains(e.target) || $('bankMenu').contains(e.target)) return;
       setBankMenuOpen(false);
     });
 
@@ -876,6 +984,9 @@
     /* 旧版本只有一个题库，错题集/进度存在无题库维度的 key 里，搬到超格名下。
        存储读取是懒加载的，这里搬完就可以直接渲染。 */
     Store.Banks.migrateLegacy();
+    renderThemeBtn();
+    syncThemeColor();
+    watchSystemTheme();
     bind();
     renderHome();
   }

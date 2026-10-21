@@ -12,6 +12,25 @@
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="stylesheet" href="css/style.css">
+<script>
+  /* 主题：显式选择优先，否则跟随系统。
+     必须放在这里同步执行——在首帧绘制前把 data-theme 打上去，避免先闪一下亮色。 */
+  (function () {
+    var theme;
+    try {
+      var saved = localStorage.getItem('zzll.theme.v1');
+      if (saved === 'dark' || saved === 'light') theme = saved;
+    } catch (e) { /* 隐私模式读不到 localStorage，退回系统偏好 */ }
+    if (!theme) {
+      theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+    /* 同步浏览器地址栏配色（此处的色值与 css 里的 --bg 保持一致） */
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#242428' : '#f5f5f7');
+  })();
+</script>
 </head>
 <body>
 
@@ -26,17 +45,30 @@
           <p class="hero-sub">判断题专项 · 把易错点练成肌肉记忆</p>
         </div>
 
-        <!-- 题库切换：可展开的下拉列表 -->
-        <div class="bank-switch" id="bankSwitch">
-          <span class="bank-switch-hint" id="bankSwitchHint">切换题库：</span>
-          <button class="bank-btn" id="bankBtn" type="button"
-                  aria-haspopup="listbox" aria-expanded="false" aria-label="切换题库">
-            <span class="bank-btn-label" id="bankBtnLabel">超格</span>
-            <svg class="bank-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 9l6 6 6-6"></path>
+        <!-- 右侧工具区：题库切换 + 暗色模式切换 -->
+        <div class="hero-tools" id="heroTools">
+          <div class="bank-switch" id="bankSwitch">
+            <span class="bank-switch-hint" id="bankSwitchHint">切换题库：</span>
+            <button class="bank-btn" id="bankBtn" type="button"
+                    aria-haspopup="listbox" aria-expanded="false" aria-label="切换题库">
+              <span class="bank-btn-label" id="bankBtnLabel">超格</span>
+              <svg class="bank-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9l6 6 6-6"></path>
+              </svg>
+            </button>
+          </div>
+
+          <button class="theme-btn" id="themeBtn" type="button" aria-label="切换到暗色模式" title="切换到暗色模式">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>
             </svg>
           </button>
+
+          <!-- 下拉菜单挂在工具区上（而不是切换器上）：
+               这样不管工具区里再放几个按钮，菜单右边缘始终贴内容区右边，
+               向左展开也不会越出屏幕。 -->
           <div class="bank-menu" id="bankMenu" role="listbox" aria-label="选择题库" hidden></div>
         </div>
       </div>
