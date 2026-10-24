@@ -310,7 +310,7 @@
     if ($('btnClearRecord')) $('btnClearRecord').disabled = !recorded;
   }
 
-  function renderChapterList(stagger) {
+  function renderChapterList() {
     var bank = state.bank;
     if (!bank) {
       $('chapterList').innerHTML =
@@ -319,18 +319,15 @@
       return;
     }
 
-    $('chapterList').innerHTML = (bank.chapters || []).map(function (ch, i) {
+    $('chapterList').innerHTML = (bank.chapters || []).map(function (ch) {
       var count = (ch.questions || []).length;
       var st = state.store.Progress.chapterStats(ch.id);
       var meta = count + ' 题';
       if (st.answered > 0) {
         meta += ' · 已练 ' + st.answered + ' · 正确率 ' + Math.round(st.rate * 100) + '%';
       }
-      /* 切换模式时逐行错位入场（delay 封顶，避免长列表等太久） */
-      var cls = 'chapter-item' + (stagger ? ' is-enter' : '');
-      var style = stagger ? ' style="animation-delay:' + Math.min(i * 26, 320) + 'ms"' : '';
       return '' +
-        '<button class="' + cls + '"' + style + ' type="button" data-chapter="' + esc(ch.id) + '">' +
+        '<button class="chapter-item" type="button" data-chapter="' + esc(ch.id) + '">' +
           '<span class="chapter-main">' +
             '<span class="chapter-name">' + esc(ch.title) + '</span>' +
             '<span class="chapter-meta">' + meta + '</span>' +
@@ -380,10 +377,14 @@
     }
   }
 
+  /**
+   * 章节模式切换。只做两件必要的事：更新开关 UI、写入缓存。
+   * **不重建章节列表** —— 列表内容与模式无关（只影响点章节的去向），
+   * 重建只会让同样的内容从透明状态重播一遍入场动画，视觉上就是"闪一下"。
+   */
   function setSectionMode(mode) {
     applySectionMode(mode, true);
     Store.SectionMode.set(state.sectionMode);
-    renderChapterList(true);
   }
 
   /** 阅读模式：把整章题目按顺序铺成一篇可滚动的文档 */

@@ -416,12 +416,6 @@ svg { display: block; }
 .mode-opt.is-on:hover { color: var(--text); }
 /* 首次定位不要动画 */
 .mode-switch.no-anim .mode-thumb { transition: none; }
-/* 模式切换时章节列表错位入场 */
-.chapter-item.is-enter { animation: row-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
-@keyframes row-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: none; }
-}
 
 .chapter-list { display: flex; flex-direction: column; gap: 10px; }
 
