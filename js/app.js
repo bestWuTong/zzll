@@ -416,10 +416,13 @@
       return '<article class="read-item" style="animation-delay:' + delay + 'ms">' +
           '<div class="read-top">' +
             '<span class="read-no">' + pad2(i + 1) + '</span>' +
-            /* 错题标记紧跟题号，答对次数钉在最右（margin-left:auto）——
-               两者位置固定，不会因为标记有无而互相挤动 */
-            (isWrongSet ? '<span class="read-badge is-wrongset">已在错题集</span>' : '') +
-            '<span class="read-badge is-times">已答对 ' + times + ' 次</span>' +
+            /* 两个徽标都靠右，顺序为「已在错题集」→「已答对 N 次」；
+               右对齐 + auto 左边距，所以答对次数永远贴着右边缘，
+               错题标记只是往左伸出一截，不会推动它 */
+            '<span class="read-flags">' +
+              (isWrongSet ? '<span class="read-badge is-wrongset">已在错题集</span>' : '') +
+              '<span class="read-badge is-times">已答对 ' + times + ' 次</span>' +
+            '</span>' +
           '</div>' +
           '<p class="read-stem">' + esc(q.stem) + '</p>' +
           '<span class="read-answer ' + (yes ? 'is-yes' : 'is-no') + '">' +

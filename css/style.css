@@ -889,6 +889,14 @@ svg { display: block; }
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
+/* 两个徽标整体靠右：错题标记在左、答对次数在右，答对次数永远贴住右边缘
+   （错题标记出现/消失只是让这个组往左伸出一截，不会推动答对次数） */
+.read-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
 .read-badge {
   padding: 2px 9px;
   border-radius: 980px;
@@ -897,12 +905,7 @@ svg { display: block; }
   line-height: 1.6;
   white-space: nowrap;
 }
-/* 答对次数固定在最右：位置不随「已在错题集」标记的有无而移动 */
-.read-badge.is-times {
-  margin-left: auto;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
+.read-badge.is-times { background: var(--accent-soft); color: var(--accent); }
 .read-badge.is-wrongset { background: var(--orange-soft); color: var(--orange); }
 
 .read-stem {
