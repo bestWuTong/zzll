@@ -125,7 +125,15 @@
       </button>
     </div>
 
-    <h2 class="section-title">章节题库</h2>
+    <div class="section-head">
+      <h2 class="section-title">章节题库</h2>
+      <!-- 刷题 / 阅读 分段开关（默认刷题，状态存 zzll.sectionmode.v1） -->
+      <div class="mode-switch" id="modeSwitch" data-mode="practice" role="tablist" aria-label="章节模式">
+        <span class="mode-thumb" aria-hidden="true"></span>
+        <button class="mode-opt is-on" type="button" role="tab" data-mode="practice" aria-selected="true">刷题</button>
+        <button class="mode-opt" type="button" role="tab" data-mode="read" aria-selected="false">阅读</button>
+      </div>
+    </div>
     <div class="chapter-list" id="chapterList"></div>
 
     <p class="foot" id="footMeta"></p>
@@ -200,6 +208,21 @@
         <button class="btn btn-primary" id="btnNext" type="button">下一题</button>
       </div>
     </div>
+  </main>
+
+  <!-- ==================== 阅读模式（章节全量题目流式展示） ==================== -->
+  <main id="view-read" class="view">
+    <header class="topbar">
+      <button class="icon-btn" id="readBack" type="button" aria-label="返回">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+      </button>
+      <div class="topbar-mid">
+        <div class="topbar-title" id="readTitle">阅读</div>
+        <div class="topbar-sub" id="readSub">共 0 题</div>
+      </div>
+      <div class="topbar-right" id="readRight"></div>
+    </header>
+    <div class="read-list" id="readList"></div>
   </main>
 
   <!-- ==================== 结果 ==================== -->

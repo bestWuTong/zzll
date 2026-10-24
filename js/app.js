@@ -20,6 +20,7 @@
     bank: null,        /* 当前题库对象 */
     store: null,       /* 当前题库的 { Wrong, Progress } */
     session: null,
+    sectionMode: 'practice',   /* 章节模式：practice 刷题 / read 阅读 */
     toastTimer: null
   };
 
@@ -59,7 +60,7 @@
   }
 
   function showView(name) {
-    ['home', 'wrong', 'quiz', 'result'].forEach(function (v) {
+    ['home', 'wrong', 'quiz', 'result', 'read'].forEach(function (v) {
       var node = $('view-' + v);
       if (node) node.classList.toggle('is-active', v === name);
     });
@@ -309,7 +310,7 @@
     if ($('btnClearRecord')) $('btnClearRecord').disabled = !recorded;
   }
 
-  function renderChapterList() {
+  function renderChapterList(stagger) {
     var bank = state.bank;
     if (!bank) {
       $('chapterList').innerHTML =
@@ -318,15 +319,18 @@
       return;
     }
 
-    $('chapterList').innerHTML = (bank.chapters || []).map(function (ch) {
+    $('chapterList').innerHTML = (bank.chapters || []).map(function (ch, i) {
       var count = (ch.questions || []).length;
       var st = state.store.Progress.chapterStats(ch.id);
       var meta = count + ' 题';
       if (st.answered > 0) {
         meta += ' · 已练 ' + st.answered + ' · 正确率 ' + Math.round(st.rate * 100) + '%';
       }
+      /* 切换模式时逐行错位入场（delay 封顶，避免长列表等太久） */
+      var cls = 'chapter-item' + (stagger ? ' is-enter' : '');
+      var style = stagger ? ' style="animation-delay:' + Math.min(i * 26, 320) + 'ms"' : '';
       return '' +
-        '<button class="chapter-item" type="button" data-chapter="' + esc(ch.id) + '">' +
+        '<button class="' + cls + '"' + style + ' type="button" data-chapter="' + esc(ch.id) + '">' +
           '<span class="chapter-main">' +
             '<span class="chapter-name">' + esc(ch.title) + '</span>' +
             '<span class="chapter-meta">' + meta + '</span>' +
@@ -335,6 +339,94 @@
           '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>' +
         '</button>';
     }).join('');
+  }
+
+  /* ------------------------------------------------------ 章节模式：刷题/阅读 */
+  function positionModeThumb() {
+    var sw = $('modeSwitch');
+    if (!sw) return;
+    var on = sw.querySelector('.mode-opt.is-on');
+    var thumb = sw.querySelector('.mode-thumb');
+    if (!on || !thumb) return;
+    thumb.style.width = on.offsetWidth + 'px';
+    thumb.style.transform = 'translateX(' + (on.offsetLeft - 3) + 'px)';
+  }
+
+  /**
+   * 应用章节模式。animate=false 用于首屏（不加滑动动画，避免从 0 宽度滑入）。
+   * 只影响「点章节」的去向，错题集与打乱刷题不受影响。
+   */
+  function applySectionMode(mode, animate) {
+    state.sectionMode = mode === 'read' ? 'read' : 'practice';
+    var sw = $('modeSwitch');
+    if (!sw) return;
+    sw.setAttribute('data-mode', state.sectionMode);
+
+    var opts = sw.querySelectorAll('.mode-opt');
+    for (var i = 0; i < opts.length; i++) {
+      var on = opts[i].getAttribute('data-mode') === state.sectionMode;
+      opts[i].classList.toggle('is-on', on);
+      opts[i].setAttribute('aria-selected', on ? 'true' : 'false');
+    }
+
+    if (!animate) {
+      sw.classList.add('no-anim');
+      positionModeThumb();
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { sw.classList.remove('no-anim'); });
+      });
+    } else {
+      positionModeThumb();
+    }
+  }
+
+  function setSectionMode(mode) {
+    applySectionMode(mode, true);
+    Store.SectionMode.set(state.sectionMode);
+    renderChapterList(true);
+  }
+
+  /** 阅读模式：把整章题目按顺序铺成一篇可滚动的文档 */
+  function openRead(ch) {
+    if (!ch) return;
+    var questions = ch.questions || [];
+    if (!questions.length) { toast('该章节暂无题目'); return; }
+
+    var counts = state.store.Stats.all();
+    var wrongIds = {};
+    state.store.Wrong.all().forEach(function (w) { wrongIds[w.id] = true; });
+
+    $('readTitle').textContent = ch.title;
+    $('readSub').textContent = '共 ' + questions.length + ' 题 · 阅读模式';
+    $('readRight').textContent = '';
+
+    $('readList').innerHTML = questions.map(function (q, i) {
+      var times = counts[q.id] || 0;
+      var isWrongSet = !!wrongIds[q.id];
+      var yes = q.answer === '正确';
+      var delay = Math.min(i * 26, 420);
+      return '<article class="read-item" style="animation-delay:' + delay + 'ms">' +
+          '<div class="read-top">' +
+            '<span class="read-no">' + pad2(i + 1) + '</span>' +
+            '<span class="read-flags">' +
+              '<span class="read-badge is-times">已答对 ' + times + ' 次</span>' +
+              (isWrongSet ? '<span class="read-badge is-wrongset">已在错题集</span>' : '') +
+            '</span>' +
+          '</div>' +
+          '<p class="read-stem">' + esc(q.stem) + '</p>' +
+          '<span class="read-answer ' + (yes ? 'is-yes' : 'is-no') + '">' +
+            '答案 · ' + esc(q.answer) + '</span>' +
+          (q.explanation
+            ? '<p class="read-expl">' + esc(q.explanation) + '</p>'
+            : '<p class="read-expl is-empty">暂无解析</p>') +
+        '</article>';
+    }).join('');
+
+    showView('read');
+  }
+
+  function pad2(n) {
+    return n < 10 ? '0' + n : String(n);
   }
 
   function chapterRing(st) {
@@ -825,6 +917,11 @@
     /* 暗色模式切换 */
     $('themeBtn').addEventListener('click', toggleTheme);
 
+    /* 窗口尺寸变化后重新贴合开关的 thumb（字体/换行可能改变按钮宽度） */
+    window.addEventListener('resize', function () {
+      applySectionMode(state.sectionMode, false);
+    });
+
     /* 首页：题库切换 */
     $('bankBtn').addEventListener('click', function (e) {
       e.stopPropagation();
@@ -879,12 +976,29 @@
       $('shuffleModal').hidden = false;
     });
 
+    /* 章节模式开关：刷题 / 阅读 */
+    $('modeSwitch').addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('.mode-opt') : null;
+      if (!b) return;
+      if (b.getAttribute('data-mode') === state.sectionMode) return;
+      setSectionMode(b.getAttribute('data-mode'));
+    });
+
+    /* 阅读模式：返回首页 */
+    $('readBack').addEventListener('click', function () {
+      renderHome();
+      showView('home');
+    });
+
     $('chapterList').addEventListener('click', function (e) {
       var btn = e.target.closest ? e.target.closest('.chapter-item') : null;
       if (!btn) return;
       var cid = btn.getAttribute('data-chapter');
       var ch = (state.bank.chapters || []).filter(function (c) { return c.id === cid; })[0];
-      startChapter(ch);
+      if (!ch) return;
+      /* 阅读模式只改「点章节」的去向，错题集/打乱刷题不受影响 */
+      if (state.sectionMode === 'read') openRead(ch);
+      else startChapter(ch);
     });
 
     /* 打乱刷题弹窗 */
@@ -1092,6 +1206,8 @@
     /* 旧版本只有一个题库，错题集/进度存在无题库维度的 key 里，搬到超格名下。
        存储读取是懒加载的，这里搬完就可以直接渲染。 */
     Store.Banks.migrateLegacy();
+    /* 章节模式：读缓存（默认刷题），首屏不加滑动动画 */
+    applySectionMode(Store.SectionMode.get(), false);
     renderThemeBtn();
     syncThemeColor();
     watchSystemTheme();

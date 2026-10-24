@@ -348,9 +348,27 @@
     }
   };
 
+  /* -------------------------------------------------- 章节模式（刷题 / 阅读）
+     全局偏好，不分题库：'practice'（默认）| 'read' */
+  var SECTION_MODE_KEY = 'zzll.sectionmode.v1';
+
+  var SectionMode = {
+    key: SECTION_MODE_KEY,
+
+    get: function () {
+      var v = storageGet(SECTION_MODE_KEY);
+      return v === 'read' ? 'read' : 'practice';
+    },
+
+    set: function (mode) {
+      storageSet(SECTION_MODE_KEY, mode === 'read' ? 'read' : 'practice');
+    }
+  };
+
   global.ZZLLStore = {
     forBank: createBankStore,
     Banks: Banks,
+    SectionMode: SectionMode,
     normalizeAnswer: normalizeAnswer
   };
 })(window);
