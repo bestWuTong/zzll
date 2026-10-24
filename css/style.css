@@ -879,8 +879,7 @@ svg { display: block; }
 .read-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 10px;
 }
 .read-no {
@@ -890,7 +889,6 @@ svg { display: block; }
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
-.read-flags { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .read-badge {
   padding: 2px 9px;
   border-radius: 980px;
@@ -899,7 +897,12 @@ svg { display: block; }
   line-height: 1.6;
   white-space: nowrap;
 }
-.read-badge.is-times { background: var(--accent-soft); color: var(--accent); }
+/* 答对次数固定在最右：位置不随「已在错题集」标记的有无而移动 */
+.read-badge.is-times {
+  margin-left: auto;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 .read-badge.is-wrongset { background: var(--orange-soft); color: var(--orange); }
 
 .read-stem {

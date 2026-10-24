@@ -416,10 +416,10 @@
       return '<article class="read-item" style="animation-delay:' + delay + 'ms">' +
           '<div class="read-top">' +
             '<span class="read-no">' + pad2(i + 1) + '</span>' +
-            '<span class="read-flags">' +
-              '<span class="read-badge is-times">已答对 ' + times + ' 次</span>' +
-              (isWrongSet ? '<span class="read-badge is-wrongset">已在错题集</span>' : '') +
-            '</span>' +
+            /* 错题标记紧跟题号，答对次数钉在最右（margin-left:auto）——
+               两者位置固定，不会因为标记有无而互相挤动 */
+            (isWrongSet ? '<span class="read-badge is-wrongset">已在错题集</span>' : '') +
+            '<span class="read-badge is-times">已答对 ' + times + ' 次</span>' +
           '</div>' +
           '<p class="read-stem">' + esc(q.stem) + '</p>' +
           '<span class="read-answer ' + (yes ? 'is-yes' : 'is-no') + '">' +
