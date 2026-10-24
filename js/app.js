@@ -66,6 +66,10 @@
     });
     /* 刷题页在移动端要把按钮沉到屏幕底部，需要收紧 .app 的底部内边距 */
     document.body.classList.toggle('is-quiz', name === 'quiz');
+    /* 首页重新可见后重新贴合模式开关的滑块。
+       从阅读/结果页返回时，视图刚从 display:none 变回可见，
+       必须等一帧再量宽度（否则量到 0）。 */
+    if (name === 'home') requestAnimationFrame(positionModeThumb);
     toTop();
   }
 
@@ -345,6 +349,9 @@
     var on = sw.querySelector('.mode-opt.is-on');
     var thumb = sw.querySelector('.mode-thumb');
     if (!on || !thumb) return;
+    /* 视图隐藏（.view 非 is-active 时 display:none）量到的宽度是 0。
+       此时绝不能写进去，否则回到首页会看到宽度为 0 的滑块，也就是「按钮消失」。 */
+    if (!on.offsetWidth) return;
     thumb.style.width = on.offsetWidth + 'px';
     thumb.style.transform = 'translateX(' + (on.offsetLeft - 3) + 'px)';
   }
@@ -920,8 +927,15 @@
 
     /* 窗口尺寸变化后重新贴合开关的 thumb（字体/换行可能改变按钮宽度） */
     window.addEventListener('resize', function () {
-      applySectionMode(state.sectionMode, false);
+      positionModeThumb();
     });
+
+    /* 比 window.resize 更准：开关自身尺寸真正变化时（视图隐藏→显示、
+       字体加载完成、旋转屏幕）都会触发。配合 positionModeThumb 的零宽保护，
+       隐藏期间量到 0 也不会把滑块写成 0 宽。 */
+    if (window.ResizeObserver) {
+      new ResizeObserver(function () { positionModeThumb(); }).observe($('modeSwitch'));
+    }
 
     /* 首页：题库切换 */
     $('bankBtn').addEventListener('click', function (e) {

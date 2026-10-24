@@ -392,7 +392,9 @@ svg { display: block; }
   top: 3px;
   left: 3px;
   height: calc(100% - 6px);
-  width: 0;
+  /* 兜底值：JS 会用实测的 px 覆盖。即使脚本没跑/测量失败，
+     滑块也停在一个合理位置，而不是宽度 0 —— 那样看起来就像按钮消失了。 */
+  width: calc(50% - 3px);
   background: var(--card);
   border-radius: 980px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.10), 0 3px 10px rgba(0, 0, 0, 0.06);
@@ -400,6 +402,8 @@ svg { display: block; }
   transition: transform 0.46s cubic-bezier(0.34, 1.28, 0.5, 1), width 0.36s cubic-bezier(0.34, 1.2, 0.5, 1);
   will-change: transform, width;
 }
+/* 纯 CSS 下的默认位置（等同 JS 计算的结果），JS 的内联 transform 会覆盖它 */
+.mode-switch[data-mode="read"] .mode-thumb { transform: translateX(100%); }
 .mode-opt {
   position: relative;
   z-index: 1;
