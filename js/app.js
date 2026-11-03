@@ -511,6 +511,63 @@
     startSession({ mode: 'chapter', title: ch.title, questions: qs, chapterId: ch.id });
   }
 
+  /**
+   * 错题集练习：从错题集里随机抽一组。
+   * - size 为空或大于池子 → 全部
+   * - used 传入时表示「下一组」：跳过已经练过的题
+   */
+  function startWrongGroup(size, used) {
+    var list = state.store.Wrong.all();
+    var pool = used ? list.filter(function (q) { return !used.has(q.id); }) : list;
+    if (!pool.length) { toast('错题集里的题都练过了'); return; }
+
+    var n = Math.min(size || pool.length, pool.length);
+    var picked = clip(shuffle(pool), n);
+    var set = used || new Set();
+    picked.forEach(function (q) { set.add(q.id); });
+
+    startSession({
+      mode: 'wrong',
+      title: '错题集 · ' + picked.length + ' 题',
+      questions: picked,
+      shuffle: { size: n, used: set }
+    });
+
+    if (used) {
+      toast(pool.length > picked.length
+        ? '下一组 ' + picked.length + ' 题（还剩 ' + (pool.length - picked.length) + ' 题）'
+        : '最后一组，错题集已经都练过了');
+    }
+  }
+
+  /** 错题集里还没出过的题（用于结果页「下一组」） */
+  function wrongRemaining(s) {
+    if (!s || s.mode !== 'wrong' || !s.shuffle) return [];
+    var used = s.shuffle.used;
+    return state.store.Wrong.all().filter(function (q) { return !used.has(q.id); });
+  }
+
+  /**
+   * 错题集题量弹窗：档位按错题总数动态生成
+   * —— 5 / 10 / 20 里小于总数的才出现，最后固定有一个「全部 N 题」。
+   */
+  function openWrongPickModal() {
+    var total = state.store.Wrong.count();
+    if (!total) { toast('错题集为空'); return; }
+
+    var tips = { 5: '快速热身', 10: '一组常规练习', 20: '一组强化练习' };
+    var html = [5, 10, 20].filter(function (n) { return n < total; }).map(function (n) {
+      return '<button class="modal-opt" data-count="' + n + '" type="button">' +
+        '<span>' + n + ' 题</span><em>' + tips[n] + '</em></button>';
+    }).join('');
+    html += '<button class="modal-opt" data-count="' + total + '" type="button">' +
+      '<span>全部 ' + total + ' 题</span><em>一次刷完</em></button>';
+
+    $('wrongPickOptions').innerHTML = html;
+    $('wrongPickSub').textContent = bankTitle() + ' · 共 ' + total + ' 题';
+    $('wrongPickModal').hidden = false;
+  }
+
   /** 当前章节的下一节（最后一节返回 null） */
   function nextChapterOf(s) {
     if (!s || s.mode !== 'chapter' || !s.chapterId) return null;
@@ -812,6 +869,12 @@
     var html = '';
 
     if (s.mode === 'wrong') {
+      /* 本次只抽了一部分时，给出「下一组」（跳过本组已练过的题） */
+      var wrongLeft = wrongRemaining(s);
+      if (wrongLeft.length) {
+        html += '<button class="btn btn-ghost" type="button" data-act="next-wrong">' +
+          '下一组（还剩 ' + wrongLeft.length + ' 题）</button>';
+      }
       html += '<button class="btn btn-primary" type="button" data-act="back-wrong">返回错题集</button>';
       html += '<button class="btn btn-soft" type="button" data-act="prune"' +
         (correctOnes.length ? '' : ' disabled') + '>将答对的 ' + correctOnes.length +
@@ -1221,7 +1284,9 @@
       var act = btn.getAttribute('data-act');
       var s = state.session;
 
-      if (act === 'add-wrong') {
+      if (act === 'next-wrong') {
+        startWrongGroup(s.shuffle && s.shuffle.size, s.shuffle ? s.shuffle.used : null);
+      } else if (act === 'add-wrong') {
         var wrongOnes = [];
         s.questions.forEach(function (q, i) {
           var a = s.answers[i];
@@ -1268,13 +1333,19 @@
     });
 
     $('btnWrongStart').addEventListener('click', function () {
-      var list = state.store.Wrong.all();
-      if (!list.length) { toast('错题集为空'); return; }
-      startSession({
-        mode: 'wrong',
-        title: '错题集 · 随机练习',
-        questions: shuffle(list)
-      });
+      openWrongPickModal();
+    });
+
+    /* 错题集题量弹窗（与打乱刷题弹窗同一套交互：点遮罩/取消关闭，点档位开始） */
+    var wrongPick = $('wrongPickModal');
+    wrongPick.addEventListener('click', function (e) {
+      var closer = e.target.closest ? e.target.closest('[data-close]') : null;
+      if (closer) { wrongPick.hidden = true; return; }
+      var opt = e.target.closest ? e.target.closest('.modal-opt') : null;
+      if (!opt) return;
+      var n = parseInt(opt.getAttribute('data-count'), 10);
+      wrongPick.hidden = true;
+      startWrongGroup(n);
     });
 
     $('wrongList').addEventListener('click', function (e) {

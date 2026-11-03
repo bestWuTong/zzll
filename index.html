@@ -288,6 +288,21 @@
   </div>
 </div>
 
+<!-- ==================== 弹窗：错题集练习题量 ==================== -->
+<div class="modal" id="wrongPickModal" hidden>
+  <div class="modal-mask" data-close="1"></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="选择每组题目数量">
+    <div class="modal-head">
+      <h3>错题集练习</h3>
+      <p id="wrongPickSub">从错题集里随机抽取</p>
+    </div>
+
+    <p class="modal-note">选择每一组的题目数量</p>
+    <div class="modal-options" id="wrongPickOptions"></div>
+    <button class="modal-cancel" data-close="1" type="button">取消</button>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 
 <!-- 同步状态气泡：固定在页面下方，不拦截点击，不打断刷题 -->
