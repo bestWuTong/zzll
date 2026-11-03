@@ -831,6 +831,73 @@
   }
 
   /* ---------------------------------------------------------------- 结果页 */
+  /**
+   * 结果页的动作按钮。
+   * 单独抽出来是因为「移除答对的题」之后要**原地刷新这一块**，
+   * 不退出结果页、不重建整页（否则又会出现内容闪一下）。
+   */
+  function renderResultActions() {
+    var s = state.session;
+    if (!s) return;
+    var actions = $('resultActions');
+
+    var wrongOnes = [];
+    s.questions.forEach(function (q, i) {
+      var a = s.answers[i];
+      if (a && a.choice !== q.answer) wrongOnes.push(q);
+    });
+    var correctOnes = s.questions.filter(function (q, i) {
+      var a = s.answers[i];
+      return a && a.choice === q.answer;
+    });
+
+    var html = '';
+
+    if (s.mode === 'wrong') {
+      /* 本次只抽了一部分时，给出「下一组」（跳过本组已练过的题） */
+      var wrongLeft = wrongRemaining(s);
+      if (wrongLeft.length) {
+        html += '<button class="btn btn-ghost" type="button" data-act="next-wrong">' +
+          '下一组（还剩 ' + wrongLeft.length + ' 题）</button>';
+      }
+      html += '<button class="btn btn-primary" type="button" data-act="back-wrong">返回错题集</button>';
+      if (s.pruned) {
+        /* 已移除过：按钮变状态位，避免重复点击 */
+        html += '<button class="btn btn-soft" type="button" disabled>已移除 ' + s.pruned + ' 题</button>';
+      } else {
+        html += '<button class="btn btn-soft" type="button" data-act="prune"' +
+          (correctOnes.length ? '' : ' disabled') + '>将答对的 ' + correctOnes.length +
+          ' 题移出错题集</button>';
+      }
+    } else {
+      /* 打乱刷题：还有没做过的题时给出「下一组」。
+         「下一节」「下一组」「重做一遍」都用与「返回首页」相同的 btn-ghost 样式
+         （白底描边），只有「加入错题集」是强调按钮。 */
+      var remaining = shuffleRemaining(s).length;
+      var canNextGroup = s.mode === 'random' && remaining > 0;
+      var nextChapter = nextChapterOf(s);
+
+      if (canNextGroup) {
+        html += '<button class="btn btn-ghost" type="button" data-act="next-group">' +
+          '下一组（还剩 ' + remaining + ' 题）</button>';
+      } else if (nextChapter) {
+        html += '<button class="btn btn-ghost" type="button" data-act="next-chapter" ' +
+          'title="' + esc(nextChapter.title) + '">下一节</button>';
+      }
+
+      var already = s.addedToWrong;
+      html += '<button class="btn btn-primary" type="button" data-act="add-wrong"' +
+        (wrongOnes.length && !already ? '' : ' disabled') + '>' +
+        (already ? '已加入错题集' :
+          (wrongOnes.length ? '把错题 ' + wrongOnes.length + ' 题加入错题集' : '本次无错题')) +
+        '</button>';
+
+      html += '<button class="btn btn-ghost" type="button" data-act="redo">重做一遍</button>';
+      html += '<button class="btn btn-ghost" type="button" data-act="home">返回首页</button>';
+    }
+    actions.innerHTML = html;
+  }
+
   function finishSession() {
     var s = state.session;
     /* 兜底：正常路径在「答完最后一题」时就已落库，这里防重复 */
@@ -860,52 +927,7 @@
       var a = s.answers[i];
       if (a && a.choice !== q.answer) wrongOnes.push(q);
     });
-    var correctOnes = s.questions.filter(function (q, i) {
-      var a = s.answers[i];
-      return a && a.choice === q.answer;
-    });
-
-    var actions = $('resultActions');
-    var html = '';
-
-    if (s.mode === 'wrong') {
-      /* 本次只抽了一部分时，给出「下一组」（跳过本组已练过的题） */
-      var wrongLeft = wrongRemaining(s);
-      if (wrongLeft.length) {
-        html += '<button class="btn btn-ghost" type="button" data-act="next-wrong">' +
-          '下一组（还剩 ' + wrongLeft.length + ' 题）</button>';
-      }
-      html += '<button class="btn btn-primary" type="button" data-act="back-wrong">返回错题集</button>';
-      html += '<button class="btn btn-soft" type="button" data-act="prune"' +
-        (correctOnes.length ? '' : ' disabled') + '>将答对的 ' + correctOnes.length +
-        ' 题移出错题集</button>';
-    } else {
-      /* 打乱刷题：还有没做过的题时给出「下一组」。
-         「下一节」「下一组」「重做一遍」都用与「返回首页」相同的 btn-ghost 样式
-         （白底描边），只有「加入错题集」是强调按钮。 */
-      var remaining = shuffleRemaining(s).length;
-      var canNextGroup = s.mode === 'random' && remaining > 0;
-      var nextChapter = nextChapterOf(s);
-
-      if (canNextGroup) {
-        html += '<button class="btn btn-ghost" type="button" data-act="next-group">' +
-          '下一组（还剩 ' + remaining + ' 题）</button>';
-      } else if (nextChapter) {
-        html += '<button class="btn btn-ghost" type="button" data-act="next-chapter" ' +
-          'title="' + esc(nextChapter.title) + '">下一节</button>';
-      }
-
-      var already = s.addedToWrong;
-      html += '<button class="btn btn-primary" type="button" data-act="add-wrong"' +
-        (wrongOnes.length && !already ? '' : ' disabled') + '>' +
-        (already ? '已加入错题集' :
-          (wrongOnes.length ? '把错题 ' + wrongOnes.length + ' 题加入错题集' : '本次无错题')) +
-        '</button>';
-
-      html += '<button class="btn btn-ghost" type="button" data-act="redo">重做一遍</button>';
-      html += '<button class="btn btn-ghost" type="button" data-act="home">返回首页</button>';
-    }
-    actions.innerHTML = html;
+    renderResultActions();
 
     var review = '';
     if (wrongOnes.length) {
@@ -1306,11 +1328,12 @@
           if (a && a.choice === q.answer) ids.push(q.id);
         });
         var removed = state.store.Wrong.removeMany(ids);
+        /* 留在结果页：只把这一排按钮原地刷新（按钮变「已移除 N 题」并禁用），
+           让用户还能继续「下一组」或看下面的错题解析 */
+        s.pruned = removed;
+        renderResultActions();
         toast('已从「' + bankTitle() + '」错题集移除 ' + removed + ' 题');
         requestSync(true);
-        state.session = null;
-        renderWrong();
-        showView('wrong');
       } else if (act === 'next-group') {
         startNextShuffleGroup();
       } else if (act === 'next-chapter') {
