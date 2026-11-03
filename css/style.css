@@ -1114,6 +1114,101 @@ svg { display: block; }
 }
 .modal-cancel:hover { background: var(--line); }
 
+/* ------------------------------------------------------------ 数据同步弹窗
+   比其他弹窗宽一点、左对齐，因为要放输入框与两个按钮组。 */
+.modal-card.modal-sync {
+  width: min(400px, calc(100vw - 40px));
+  max-height: 86vh;
+  overflow-y: auto;
+  text-align: left;
+  padding: 22px 20px 14px;
+}
+
+.sync-status {
+  margin: 14px 0 4px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-3);
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+}
+.sync-status.is-ok { color: var(--green); background: var(--green-soft); }
+.sync-status.is-error { color: var(--red); background: var(--red-soft); }
+
+.sync-field { margin-top: 12px; }
+.sync-field label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+.sync-field input {
+  width: 100%;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.sync-field input::placeholder { color: var(--text-3); }
+.sync-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.modal-sync .modal-check { margin-top: 14px; padding: 10px 12px; }
+.modal-sync .mc-text { font-size: 13px; }
+
+.sync-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.sync-actions .btn {
+  flex: 1;
+  padding: 11px 10px;
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+}
+
+.sync-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.sync-paste { margin-top: 10px; }
+.sync-paste[hidden] { display: none; }
+.sync-paste textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  outline: none;
+  resize: vertical;
+}
+.sync-paste textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.sync-paste .btn { width: 100%; margin-top: 8px; }
+
+.modal-sync .modal-cancel { margin-top: 10px; }
+
 /* -------------------------------------------------------------------- 提示 */
 .toast {
   position: fixed;

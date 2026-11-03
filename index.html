@@ -81,6 +81,16 @@
             </button>
           </div>
 
+          <button class="theme-btn" id="syncBtn" type="button" aria-label="数据同步" title="数据同步">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.5 12a8.5 8.5 0 0 1-14.4 6.1"></path>
+              <path d="M3.5 12a8.5 8.5 0 0 1 14.4-6.1"></path>
+              <path d="M17.9 2.6v3.4h-3.4"></path>
+              <path d="M6.1 21.4v-3.4h3.4"></path>
+            </svg>
+          </button>
+
           <button class="theme-btn" id="themeBtn" type="button" aria-label="切换到暗色模式" title="切换到暗色模式">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
                  stroke-linecap="round" stroke-linejoin="round">
@@ -156,16 +166,16 @@
     </header>
 
     <div class="tool-row">
-      <button class="chip-btn" id="btnWrongExport" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><path d="M8 11l4 4 4-4"></path><path d="M5 19h14"></path></svg>
-        导出 JSON
-      </button>
-      <button class="chip-btn" id="btnWrongImport" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V9"></path><path d="M8 13l4-4 4 4"></path><path d="M5 5h14"></path></svg>
-        导入 JSON
+      <button class="chip-btn" id="btnWrongSync" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20.5 12a8.5 8.5 0 0 1-14.4 6.1"></path>
+          <path d="M3.5 12a8.5 8.5 0 0 1 14.4-6.1"></path>
+          <path d="M17.9 2.6v3.4h-3.4"></path>
+          <path d="M6.1 21.4v-3.4h3.4"></path>
+        </svg>
+        数据同步
       </button>
       <button class="chip-btn chip-danger" id="btnWrongClear" type="button">清空</button>
-      <input type="file" id="importFile" accept=".json,application/json" hidden>
     </div>
 
     <div class="wrong-list" id="wrongList"></div>
@@ -280,9 +290,66 @@
 
 <div class="toast" id="toast" hidden></div>
 
+<!-- ==================== 弹窗：数据同步 ==================== -->
+<div class="modal" id="syncModal" hidden>
+  <div class="modal-mask" data-close="1"></div>
+  <div class="modal-card modal-sync" role="dialog" aria-modal="true" aria-label="数据同步">
+    <div class="modal-head">
+      <h3>数据同步</h3>
+      <p id="syncSub">所有题库的错题集与刷题记录</p>
+    </div>
+
+    <p class="sync-status" id="syncStatus">尚未配置</p>
+
+    <div class="sync-field">
+      <label for="syncGist">Gist ID</label>
+      <input type="text" id="syncGist" placeholder="例如 eafafdf93e19f5bf3a119bfa26b0e8db"
+             autocomplete="off" spellcheck="false">
+    </div>
+    <div class="sync-field">
+      <label for="syncToken">访问令牌（仅需 Gists 读写权限，只保存在本机）</label>
+      <input type="password" id="syncToken" placeholder="github_pat_..."
+             autocomplete="off" spellcheck="false">
+    </div>
+    <div class="sync-field">
+      <label for="syncFilename">文件名</label>
+      <input type="text" id="syncFilename" placeholder="zzll-wutong.json"
+             autocomplete="off" spellcheck="false">
+    </div>
+
+    <label class="modal-check">
+      <input type="checkbox" id="syncAuto" checked>
+      <span class="mc-box" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+      </span>
+      <span class="mc-text">自动同步（启动时拉取，刷题后推送）</span>
+    </label>
+
+    <div class="sync-actions">
+      <button class="btn btn-primary" id="btnSyncNow" type="button">立即同步</button>
+      <button class="btn btn-ghost" id="btnSyncTest" type="button">测试连接</button>
+    </div>
+
+    <p class="modal-note">手动同步（剪贴板）</p>
+    <div class="sync-actions">
+      <button class="btn btn-ghost" id="btnSyncCopy" type="button">复制同步数据</button>
+      <button class="btn btn-ghost" id="btnSyncPaste" type="button">粘贴并导入</button>
+    </div>
+    <p class="sync-hint">换设备时：旧设备点「复制同步数据」，新设备点「粘贴并导入」。</p>
+    <div class="sync-paste" id="syncPasteWrap" hidden>
+      <textarea id="syncPasteBox" placeholder="把另一台设备复制的同步数据粘贴到这里"></textarea>
+      <button class="btn btn-ghost" id="btnSyncPasteGo" type="button">导入这段数据</button>
+    </div>
+
+    <button class="modal-cancel" data-close="1" type="button">关闭</button>
+  </div>
+</div>
+
 <script src="data/chaoge.js"></script>
 <script src="data/xiaohei.js"></script>
 <script src="js/store.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

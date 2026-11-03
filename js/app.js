@@ -864,7 +864,6 @@
     var list = state.store.Wrong.all();
     $('wrongSub').textContent = bankTitle() + ' · 共 ' + list.length + ' 题';
     $('btnWrongStart').disabled = list.length === 0;
-    $('btnWrongExport').disabled = list.length === 0;
     $('btnWrongClear').disabled = list.length === 0;
 
     if (!list.length) {
@@ -874,7 +873,7 @@
             '<path d="M12 3.5 20 7v5.2c0 4.4-3.2 7.4-8 8.3-4.8-.9-8-3.9-8-8.3V7l8-3.5Z"></path>' +
             '<path d="M9.2 12.2l2 2 3.6-3.9"></path></svg>' +
           '<p class="empty-title">「' + esc(bankTitle()) + '」的错题集还是空的</p>' +
-          '<p class="empty-desc">刷完后在结果页点「加入错题集」，<br>或者在此处导入之前导出的 JSON 文件。</p>' +
+          '<p class="empty-desc">刷完后在结果页点「加入错题集」，<br>或用右上角「同步」在设备之间搬运数据。</p>' +
         '</div>';
       return;
     }
@@ -884,43 +883,80 @@
     }).join('');
   }
 
-  /* --------------------------------------------------------------- 导入导出 */
-  function download(filename, text) {
-    var blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
-  }
+  /* --------------------------------------------------------------- 数据同步 */
+  var Sync = window.ZZLLSync;
 
-  function stamp() {
-    var d = new Date();
+  function syncTimeText(ts) {
+    if (!ts) return '从未同步';
+    var d = new Date(ts);
     function p(n) { return (n < 10 ? '0' : '') + n; }
-    return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) +
-      '_' + p(d.getHours()) + p(d.getMinutes());
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+      ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
-  function handleImport(file) {
-    var reader = new FileReader();
-    reader.onload = function () {
-      try {
-        var payload = JSON.parse(String(reader.result));
-        var res = state.store.Wrong.importPayload(payload);
-        renderWrong();
-        var from = res.fromBank && res.fromBank.name && res.fromBank.id !== state.bank.id
-          ? '（文件来自「' + res.fromBank.name + '」）' : '';
-        toast('导入到「' + bankTitle() + '」：新增 ' + res.added + ' 题，已存在 ' +
-          res.existed + ' 题' + from);
-      } catch (err) {
-        toast('导入失败：' + (err && err.message ? err.message : '文件格式不正确'));
-      }
-    };
-    reader.onerror = function () { toast('导入失败：无法读取文件'); };
-    reader.readAsText(file, 'utf-8');
+  function renderSyncStatus() {
+    var el = $('syncStatus');
+    if (!el) return;
+    var cfg = Sync.config();
+    var st = Sync.state();
+    if (!cfg.gistId || !cfg.token) {
+      el.textContent = '尚未配置：填写 Gist ID 与访问令牌后可云同步';
+      el.className = 'sync-status';
+      return;
+    }
+    if (st.lastError) {
+      el.textContent = '上次同步失败：' + st.lastError + '（继续使用本地数据）';
+      el.className = 'sync-status is-error';
+      return;
+    }
+    if (!st.lastSyncAt) {
+      el.textContent = '已配置，尚未同步过';
+      el.className = 'sync-status';
+      return;
+    }
+    el.textContent = '上次同步：' + syncTimeText(st.lastSyncAt);
+    el.className = 'sync-status is-ok';
+  }
+
+  function fillSyncForm() {
+    var cfg = Sync.config();
+    $('syncGist').value = cfg.gistId;
+    $('syncToken').value = cfg.token;
+    $('syncFilename').value = cfg.filename;
+    $('syncAuto').checked = cfg.autoSync;
+    renderSyncStatus();
+  }
+
+  function openSyncModal() {
+    fillSyncForm();
+    var wrap = $('syncPasteWrap');
+    if (wrap) { wrap.hidden = true; }
+    var box = $('syncPasteBox');
+    if (box) box.value = '';
+    $('syncModal').hidden = false;
+  }
+
+  /** 表单 → 配置（失焦/操作前都落盘，避免用户没点保存就关窗丢配置） */
+  function persistSyncForm() {
+    Sync.saveConfig({
+      gistId: $('syncGist').value.trim(),
+      token: $('syncToken').value.trim(),
+      filename: $('syncFilename').value.trim() || 'zzll-wutong.json',
+      autoSync: !!$('syncAuto').checked
+    });
+  }
+
+  /** 同步把数据写回本地后刷新当前视图 */
+  function refreshAfterSync() {
+    if ($('view-wrong').classList.contains('is-active')) renderWrong();
+    if ($('view-home').classList.contains('is-active')) renderHome();
+    renderSyncStatus();
+  }
+
+  function setSyncBusy(busy, label) {
+    $('btnSyncNow').disabled = busy;
+    $('btnSyncTest').disabled = busy;
+    $('btnSyncNow').textContent = busy ? (label || '同步中…') : '立即同步';
   }
 
   /* ------------------------------------------------------------- 事件绑定 */
@@ -1083,9 +1119,8 @@
           var a = s.answers[i];
           if (a && a.choice !== q.answer) wrongOnes.push(q);
         });
-        var res = state.store.Wrong.addMany(wrongOnes, function (q) {
-          return { chapterId: q.chapterId, chapterTitle: q.chapterTitle };
-        });
+        /* 错题集只记题目 id，章节/题干/解析在渲染时从题库数据还原 */
+        var res = state.store.Wrong.addMany(wrongOnes);
         s.addedToWrong = true;
         btn.disabled = true;
         btn.textContent = '已加入错题集';
@@ -1142,28 +1177,103 @@
       var left = state.store.Wrong.count();
       $('wrongSub').textContent = bankTitle() + ' · 共 ' + left + ' 题';
       $('btnWrongStart').disabled = left === 0;
-      $('btnWrongExport').disabled = left === 0;
       $('btnWrongClear').disabled = left === 0;
       if (left === 0) renderWrong();
       toast('已移除');
     });
 
-    $('btnWrongExport').addEventListener('click', function () {
-      if (!state.store.Wrong.count()) return;
-      download('政治理论错题集_' + bankTitle() + '_' + stamp() + '.json',
-        JSON.stringify(state.store.Wrong.exportPayload(state.bank), null, 2));
-      toast('已导出「' + bankTitle() + '」错题 ' + state.store.Wrong.count() + ' 题');
+    /* ---- 数据同步 ---- */
+    $('syncBtn').addEventListener('click', openSyncModal);
+    $('btnWrongSync').addEventListener('click', openSyncModal);
+
+    ['syncGist', 'syncToken', 'syncFilename'].forEach(function (id) {
+      $(id).addEventListener('change', function () {
+        persistSyncForm();
+        renderSyncStatus();
+      });
     });
 
-    $('btnWrongImport').addEventListener('click', function () {
-      $('importFile').value = '';
-      $('importFile').click();
+    $('syncAuto').addEventListener('change', persistSyncForm);
+
+    $('syncModal').addEventListener('click', function (e) {
+      if (e.target.getAttribute && e.target.getAttribute('data-close')) {
+        $('syncModal').hidden = true;
+      }
     });
 
-    $('importFile').addEventListener('change', function (e) {
-      var file = e.target.files && e.target.files[0];
-      if (file) handleImport(file);
+    $('btnSyncNow').addEventListener('click', function () {
+      persistSyncForm();
+      if (!Sync.configured()) { toast('请先填写 Gist ID 与访问令牌'); return; }
+      setSyncBusy(true);
+      Sync.sync().then(function (res) {
+        setSyncBusy(false);
+        refreshAfterSync();
+        var map = { push: '已上传到云端', pull: '已从云端拉取', merge: '两端数据已合并', none: '数据已是最新' };
+        toast(map[res.action] || '同步完成');
+      }, function (err) {
+        setSyncBusy(false);
+        renderSyncStatus();
+        refreshAfterSync();
+        toast('云同步失败：' + (err && err.message ? err.message : '未知错误') + '，继续使用本地数据');
+      });
     });
+
+    $('btnSyncTest').addEventListener('click', function () {
+      persistSyncForm();
+      if (!Sync.configured()) { toast('请先填写 Gist ID 与访问令牌'); return; }
+      setSyncBusy(true, '测试中…');
+      Sync.testConnection().then(function (res) {
+        setSyncBusy(false);
+        toast(res.hasData
+          ? '连接正常，云端已有数据（' + res.updatedAt + '）'
+          : '连接正常，云端暂无数据，首次同步会上传');
+        renderSyncStatus();
+      }, function (err) {
+        setSyncBusy(false);
+        toast('连接失败：' + (err && err.message ? err.message : '未知错误'));
+        renderSyncStatus();
+      });
+    });
+
+    $('btnSyncCopy').addEventListener('click', function () {
+      Sync.copyToClipboard(Sync.exportText()).then(function () {
+        toast('已复制同步数据，可在另一台设备「粘贴并导入」');
+      }, function (err) {
+        toast('复制失败：' + (err && err.message ? err.message : '浏览器不允许'));
+      });
+    });
+
+    $('btnSyncPaste').addEventListener('click', function () {
+      Sync.readClipboard().then(function (text) {
+        doImportText(text);
+      }, function () {
+        toast('浏览器不允许读取剪贴板，请手动粘贴后点「导入这段数据」');
+        var wrap = $('syncPasteWrap');
+        if (wrap) { wrap.hidden = false; $('syncPasteBox').focus(); }
+      });
+    });
+
+    var pasteBox = $('syncPasteBox');
+    if (pasteBox) {
+      $('btnSyncPasteGo').addEventListener('click', function () {
+        doImportText(pasteBox.value);
+      });
+    }
+
+    function doImportText(text) {
+      try {
+        var res = Sync.importText(text);
+        $('syncModal').hidden = true;
+        var wrap = $('syncPasteWrap');
+        if (wrap) { wrap.hidden = true; }
+        if (pasteBox) pasteBox.value = '';
+        renderHome();
+        if ($('view-wrong').classList.contains('is-active')) renderWrong();
+        toast('已导入 ' + res.banks + ' 个题库的数据，错题共 ' + res.wrong + ' 题');
+      } catch (err) {
+        toast('导入失败：' + (err && err.message ? err.message : '数据格式不正确'));
+      }
+    }
 
     $('btnWrongClear').addEventListener('click', function () {
       if (!state.store.Wrong.count()) return;
@@ -1231,6 +1341,15 @@
     watchSystemTheme();
     bind();
     renderHome();
+    /* 同步层：绑定数据变更监听 + 启动时自动拉取（有配置才生效） */
+    if (Sync) {
+      Sync.init();
+      Sync.subscribe(function (ev) {
+        if (ev.action === 'error') renderSyncStatus();
+        else { renderSyncStatus(); refreshAfterSync(); }
+      });
+      renderSyncStatus();
+    }
     /* 题库数据就绪 + 首页绘制完成后，才撤掉启动遮罩 */
     finishBoot();
   }

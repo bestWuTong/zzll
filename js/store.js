@@ -2,8 +2,10 @@
    本地存储层（按题库隔离）
    - Banks    : 当前选中的题库（zzll.bank.v1）+ 旧数据一次性迁移
    - forBank(): 取某个题库的存储实例
-       Wrong    错题集  zzll.wrong.<题库id>.v1
-       Progress 进度    zzll.progress.<题库id>.v1
+       Wrong    错题集   zzll.wrong.<题库id>.v2  —— 只存题目 id，题干从题库数据还原
+       Progress 进度     zzll.progress.<题库id>.v1
+       Stats    答对次数 zzll.correct.<题库id>.v1
+   - 业务写操作会派发 zzll:data-changed，同步层据此防抖推送
    localStorage 不可用时自动降级为内存存储，页面功能不中断。
    ========================================================================== */
 
@@ -12,10 +14,11 @@
 
   var BANK_KEY = 'zzll.bank.v1';
   var DEFAULT_BANK = 'chaoge';
-  var EXPORT_TYPE = 'zzll-wrong';
   /* 旧版本只有一个题库，key 里没有题库维度 */
   var LEGACY_WRONG_KEY = 'zzll.wrong.v1';
   var LEGACY_PROGRESS_KEY = 'zzll.progress.v1';
+  /* 同步层用来判断「本地有没有未推送的改动」 */
+  var DATA_UPDATED_KEY = 'zzll.data.updatedAt';
 
   /* ------------------------------------------------------------- 存储适配层 */
   var memory = {};
@@ -53,47 +56,87 @@
     storageSet(key, JSON.stringify(value));
   }
 
-  /* ------------------------------------------------------------ 答案归一化 */
-  /* 题库数据里答案只有「正确」/「错误」两个值；
-     这里兼容历史数据、旧导出文件里的 A/B、对/错、T/F 写法 */
-  var ANSWER_ALIASES = {
-    'A': '正确', 'B': '错误',
-    '对': '正确', '错': '错误',
-    'T': '正确', 'F': '错误'
-  };
-
-  function normalizeAnswer(value) {
-    if (value === '正确' || value === '错误') return value;
-    var s = String(value === null || value === undefined ? '' : value).trim();
-    if (s === '正确' || s === '错误') return s;
-    return ANSWER_ALIASES[s] || ANSWER_ALIASES[s.toUpperCase()] || null;
+  /** 数据变更信标：记时间戳 + 通知同步层（同步层自己写入时用 silent 避免回环） */
+  function notifyChange() {
+    storageSet(DATA_UPDATED_KEY, String(Date.now()));
+    try {
+      if (typeof global.dispatchEvent === 'function') {
+        global.dispatchEvent(new CustomEvent('zzll:data-changed'));
+      }
+    } catch (e) { /* 老浏览器忽略 */ }
   }
 
-  function normalize(q, chapterId, chapterTitle) {
-    var answer = normalizeAnswer(q.answer) || '正确';
-    return {
-      id: String(q.id || ''),
-      no: q.no || 0,
-      stem: String(q.stem || ''),
-      answer: answer,
-      explanation: String(q.explanation || ''),
-      chapterId: chapterId || q.chapterId || '',
-      chapterTitle: chapterTitle || q.chapterTitle || ''
-    };
+  function uniq(list) {
+    var seen = {}, out = [];
+    (list || []).forEach(function (v) {
+      if (typeof v !== 'string' || !v || seen[v]) return;
+      seen[v] = true;
+      out.push(v);
+    });
+    return out;
+  }
+
+  /* ---------------------------------------------------- 题库数据 → 题目索引
+     错题集只保存题目 id，题干/答案/解析在渲染时从题库数据还原。
+     新增题库或题目无需改动这里：遍历的是题库对象本身。
+     索引在页面生命周期内缓存（题库数据是静态的）。 */
+  var questionIndexCache = {};
+
+  function questionIndex(bankId) {
+    if (questionIndexCache[bankId]) return questionIndexCache[bankId];
+    var bank = (global.ZZLL_BANKS || {})[bankId];
+    if (!bank || !Array.isArray(bank.chapters)) return null;
+    var map = {};
+    bank.chapters.forEach(function (ch) {
+      (ch.questions || []).forEach(function (q) {
+        if (!q || !q.id) return;
+        map[q.id] = {
+          id: q.id,
+          no: q.no,
+          stem: q.stem,
+          answer: q.answer,
+          explanation: q.explanation,
+          chapterId: ch.id,
+          chapterTitle: ch.title
+        };
+      });
+    });
+    questionIndexCache[bankId] = map;
+    return map;
   }
 
   /* ------------------------------------------------------- 单个题库的存储 */
   function createBankStore(bankId) {
-    var wrongKey = 'zzll.wrong.' + bankId + '.v1';
+    var wrongKey = 'zzll.wrong.' + bankId + '.v2';
+    var wrongKeyV1 = 'zzll.wrong.' + bankId + '.v1';
     var progressKey = 'zzll.progress.' + bankId + '.v1';
     var correctKey = 'zzll.correct.' + bankId + '.v1';
+
+    /** 旧版错题集存的是整题对象，这里一次性转成 id 数组（保留旧 key 作备份） */
+    function migrateWrong() {
+      if (storageGet(wrongKey) !== null) return;
+      var legacy = readJSON(wrongKeyV1, null);
+      if (!Array.isArray(legacy) || !legacy.length) return;
+      var ids = legacy.map(function (q) { return q && q.id ? String(q.id) : ''; });
+      writeJSON(wrongKey, uniq(ids));
+    }
 
     var Wrong = {
       key: wrongKey,
 
-      all: function () {
+      /** 原始题目 id 列表（同步载荷用这个，不带题干） */
+      ids: function () {
+        migrateWrong();
         var list = readJSON(wrongKey, []);
-        return Array.isArray(list) ? list : [];
+        return Array.isArray(list) ? uniq(list) : [];
+      },
+
+      /** 还原成题目对象（题干、答案、解析、章节都从题库数据取） */
+      all: function () {
+        var index = questionIndex(bankId);
+        if (!index) return [];
+        return this.ids().map(function (id) { return index[id]; })
+          .filter(function (q) { return !!q; });
       },
 
       count: function () {
@@ -101,118 +144,70 @@
       },
 
       has: function (id) {
-        return this.all().some(function (q) { return q.id === id; });
+        return this.ids().indexOf(id) !== -1;
       },
 
-      /** 加入一题，返回 true=新增 / false=已存在（已存在则刷新题干与解析） */
-      add: function (question, chapterId, chapterTitle) {
-        var q = normalize(question, chapterId, chapterTitle);
-        if (!q.id || !q.stem) return false;
-        var list = this.all();
-        for (var i = 0; i < list.length; i++) {
-          if (list[i].id === q.id) {
-            list[i] = q;
-            writeJSON(wrongKey, list);
-            return false;
-          }
-        }
-        list.push(q);
+      /** 加入一题，返回 true=新增 / false=已存在 */
+      add: function (question) {
+        var id = question && question.id ? String(question.id) : '';
+        if (!id) return false;
+        var list = this.ids();
+        if (list.indexOf(id) !== -1) return false;
+        list.push(id);
         writeJSON(wrongKey, list);
+        notifyChange();
         return true;
       },
 
       /** 批量加入，返回 { added, existed } */
-      addMany: function (questions, chapterOf) {
-        var list = this.all();
-        var index = {};
-        list.forEach(function (q) { index[q.id] = true; });
+      addMany: function (questions) {
+        var list = this.ids();
+        var seen = {};
+        list.forEach(function (id) { seen[id] = true; });
         var added = 0, existed = 0;
-        questions.forEach(function (raw) {
-          var ctx = chapterOf ? chapterOf(raw) : {};
-          var q = normalize(raw, ctx.chapterId, ctx.chapterTitle);
-          if (!q.id || !q.stem) return;
-          if (index[q.id]) { existed++; return; }
-          index[q.id] = true;
-          list.push(q);
+        (questions || []).forEach(function (q) {
+          var id = q && q.id ? String(q.id) : '';
+          if (!id) return;
+          if (seen[id]) { existed++; return; }
+          seen[id] = true;
+          list.push(id);
           added++;
         });
-        writeJSON(wrongKey, list);
+        if (added) {
+          writeJSON(wrongKey, list);
+          notifyChange();
+        }
         return { added: added, existed: existed };
       },
 
       removeMany: function (ids) {
         var set = {};
-        ids.forEach(function (id) { set[id] = true; });
-        var list = this.all();
-        var kept = list.filter(function (q) { return !set[q.id]; });
+        (ids || []).forEach(function (id) { set[id] = true; });
+        var list = this.ids();
+        var kept = list.filter(function (id) { return !set[id]; });
         writeJSON(wrongKey, kept);
+        if (kept.length !== list.length) notifyChange();
         return list.length - kept.length;
       },
 
       remove: function (id) {
-        var list = this.all();
-        var kept = list.filter(function (q) { return q.id !== id; });
+        var list = this.ids();
+        var kept = list.filter(function (v) { return v !== id; });
         writeJSON(wrongKey, kept);
+        if (kept.length !== list.length) notifyChange();
         return list.length !== kept.length;
       },
 
       clear: function () {
         writeJSON(wrongKey, []);
+        notifyChange();
       },
 
-      /** 导出载荷；bankInfo 用于标记来源题库 */
-      exportPayload: function (bankInfo) {
-        return {
-          type: EXPORT_TYPE,
-          version: 2,
-          bank: bankInfo ? { id: bankInfo.id, name: bankInfo.name } : null,
-          exportedAt: new Date().toISOString(),
-          count: this.all().length,
-          questions: this.all()
-        };
-      },
-
-      /**
-       * 导入。兼容：
-       *  1) 本应用导出的 { type:'zzll-wrong', questions:[...] }
-       *  2) 题库文件      { id/name/meta/chapters:[{ questions:[...] }] }
-       *  3) 纯数组        [ {...}, {...} ]
-       * 答案值为 A/B 的历史文件会自动归一化为 正确/错误。
-       * 返回 { added, existed, total, fromBank }
-       */
-      importPayload: function (payload) {
-        var items = [];
-        var fromBank = null;
-
-        if (Array.isArray(payload)) {
-          items = payload;
-        } else if (payload && Array.isArray(payload.questions)) {
-          items = payload.questions;
-          if (payload.bank && payload.bank.name) fromBank = payload.bank;
-        } else if (payload && Array.isArray(payload.chapters)) {
-          payload.chapters.forEach(function (ch) {
-            (ch.questions || []).forEach(function (q) {
-              items.push({
-                id: q.id, no: q.no, stem: q.stem, answer: q.answer,
-                explanation: q.explanation,
-                chapterId: ch.id, chapterTitle: ch.title
-              });
-            });
-          });
-          if (payload.name || payload.shortName) {
-            fromBank = { id: payload.id || '', name: payload.name || payload.shortName };
-          }
-        } else {
-          throw new Error('无法识别的 JSON 格式');
-        }
-
-        var valid = items.filter(function (q) {
-          return q && q.stem && normalizeAnswer(q.answer);
-        });
-        if (!valid.length) throw new Error('文件中没有可识别的题目');
-
-        var res = this.addMany(valid, null);
-        return { added: res.added, existed: res.existed, total: valid.length, fromBank: fromBank };
+      /** 同步层整表写入：静默（不触发推送回环） */
+      replace: function (ids) {
+        writeJSON(wrongKey, uniq((ids || []).filter(function (v) {
+          return typeof v === 'string' && v;
+        })));
       }
     };
 
@@ -233,6 +228,7 @@
         else delete ch.correct[questionId];
         all[chapterId] = ch;
         writeJSON(progressKey, all);
+        notifyChange();
       },
 
       chapterStats: function (chapterId) {
@@ -255,6 +251,11 @@
 
       reset: function () {
         writeJSON(progressKey, {});
+        notifyChange();
+      },
+
+      replace: function (obj) {
+        writeJSON(progressKey, (obj && typeof obj === 'object') ? obj : {});
       }
     };
 
@@ -278,10 +279,12 @@
         var m = this.all();
         m[questionId] = (m[questionId] || 0) + 1;
         writeJSON(correctKey, m);
+        notifyChange();
       },
 
       reset: function () {
         writeJSON(correctKey, {});
+        notifyChange();
       },
 
       /**
@@ -301,6 +304,10 @@
         });
         writeJSON(correctKey, seed);
         return true;
+      },
+
+      replace: function (obj) {
+        writeJSON(correctKey, (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {});
       }
     };
 
@@ -326,15 +333,13 @@
      */
     migrateLegacy: function () {
       var moved = [];
-      var targetWrong = 'zzll.wrong.' + DEFAULT_BANK + '.v1';
+      var targetWrong = 'zzll.wrong.' + DEFAULT_BANK + '.v2';
       var targetProgress = 'zzll.progress.' + DEFAULT_BANK + '.v1';
 
       var legacyWrong = readJSON(LEGACY_WRONG_KEY, null);
       if (Array.isArray(legacyWrong) && legacyWrong.length && !storageGet(targetWrong)) {
-        /* 顺手把历史 A/B 答案归一化成 正确/错误 */
-        var normalized = legacyWrong.map(function (q) { return normalize(q); })
-          .filter(function (q) { return q.id && q.stem; });
-        writeJSON(targetWrong, normalized);
+        var ids = legacyWrong.map(function (q) { return q && q.id ? String(q.id) : ''; });
+        writeJSON(targetWrong, uniq(ids));
         moved.push(LEGACY_WRONG_KEY);
       }
 
@@ -369,6 +374,9 @@
     forBank: createBankStore,
     Banks: Banks,
     SectionMode: SectionMode,
-    normalizeAnswer: normalizeAnswer
+    /* 同步层用：本地数据最后修改时间（毫秒） */
+    dataUpdatedAt: function () {
+      return Number(storageGet(DATA_UPDATED_KEY) || 0) || 0;
+    }
   };
 })(window);
