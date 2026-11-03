@@ -326,9 +326,13 @@
     $('chapterList').innerHTML = (bank.chapters || []).map(function (ch) {
       var count = (ch.questions || []).length;
       var st = state.store.Progress.chapterStats(ch.id);
+      /* 只有整章每道题都练过才算「完成」，完成前不显示正确率（样本不完整会误导） */
+      var done = count > 0 && st.answered >= count;
       var meta = count + ' 题';
-      if (st.answered > 0) {
+      if (done) {
         meta += ' · 已练 ' + st.answered + ' · 正确率 ' + Math.round(st.rate * 100) + '%';
+      } else if (st.answered > 0) {
+        meta += ' · 已练 ' + st.answered + ' · 未完成';
       }
       return '' +
         '<button class="chapter-item" type="button" data-chapter="' + esc(ch.id) + '">' +
@@ -336,7 +340,7 @@
             '<span class="chapter-name">' + esc(ch.title) + '</span>' +
             '<span class="chapter-meta">' + meta + '</span>' +
           '</span>' +
-          chapterRing(st) +
+          chapterRing(st, done) +
           '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>' +
         '</button>';
     }).join('');
@@ -440,11 +444,22 @@
     return n < 10 ? '0' + n : String(n);
   }
 
-  function chapterRing(st) {
+  /**
+   * 章节进度环。
+   * - 未练过：空环 + 「未练」
+   * - 练过但没练完：空环（不画进度）+ 中心显示「x/y」，避免用不完整的样本算正确率
+   * - 整章练完：按正确率画环
+   */
+  function chapterRing(st, done) {
     if (!st.answered) {
       return '<span class="chapter-ring is-empty">' +
         '<svg viewBox="0 0 42 42"><circle class="cr-bg" cx="21" cy="21" r="17"></circle></svg>' +
         '<span class="cr-text">未练</span></span>';
+    }
+    if (!done) {
+      return '<span class="chapter-ring is-empty">' +
+        '<svg viewBox="0 0 42 42"><circle class="cr-bg" cx="21" cy="21" r="17"></circle></svg>' +
+        '<span class="cr-text">未完成</span></span>';
     }
     var p = st.rate;
     var offset = (106.8 * (1 - p)).toFixed(1);
@@ -941,7 +956,8 @@
     Sync.saveConfig({
       gistId: $('syncGist').value.trim(),
       token: $('syncToken').value.trim(),
-      filename: $('syncFilename').value.trim() || 'zzll-wutong.json',
+      /* 留空就用默认文件名（zzll-wutong.json），界面上不预填 */
+      filename: $('syncFilename').value.trim(),
       autoSync: !!$('syncAuto').checked
     });
   }
@@ -1058,7 +1074,10 @@
     /* 打乱刷题弹窗 */
     var modal = $('shuffleModal');
     modal.addEventListener('click', function (e) {
-      if (e.target.getAttribute && e.target.getAttribute('data-close')) {
+      /* 同样用 closest：遮罩和「取消」按钮本身有 data-close，
+         但以后若在里面放图标，直接读 e.target 会点不中 */
+      var closer = e.target.closest ? e.target.closest('[data-close]') : null;
+      if (closer) {
         modal.hidden = true;
         return;
       }
@@ -1196,9 +1215,11 @@
     $('syncAuto').addEventListener('change', persistSyncForm);
 
     $('syncModal').addEventListener('click', function (e) {
-      if (e.target.getAttribute && e.target.getAttribute('data-close')) {
-        $('syncModal').hidden = true;
-      }
+      /* 用 closest 而不是直接看 e.target：
+         点 X 图标时 target 是内层 <path>/<svg>，本身没有 data-close，
+         只有点到按钮边缘才关得掉（表现为「点好几下才有反应」）。 */
+      var hit = e.target.closest ? e.target.closest('[data-close]') : null;
+      if (hit) $('syncModal').hidden = true;
     });
 
     $('btnSyncNow').addEventListener('click', function () {

@@ -17,6 +17,7 @@
   var DATA_UPDATED_KEY = 'zzll.data.updatedAt';
   var TYPE = 'zzll-sync';
   var VERSION = 2;
+  var DEFAULT_FILENAME = 'zzll-wutong.json';
   var API = 'https://api.github.com';
   var RETRY = 3;
   var PUSH_DELAY = 4000;      /* 数据变更后延迟推送，避免刷题时频繁请求 */
@@ -48,7 +49,8 @@
     return {
       gistId: typeof c.gistId === 'string' ? c.gistId : '',
       token: typeof c.token === 'string' ? c.token : '',
-      filename: typeof c.filename === 'string' && c.filename ? c.filename : 'zzll-wutong.json',
+      /* 没填时留空，真正用的时候再回退到默认文件名（界面上不预填） */
+      filename: typeof c.filename === 'string' ? c.filename : '',
       autoSync: c.autoSync !== false
     };
   }
@@ -278,7 +280,7 @@
   }
 
   function remoteFilename() {
-    return config().filename;
+    return config().filename || DEFAULT_FILENAME;
   }
 
   function pull() {
