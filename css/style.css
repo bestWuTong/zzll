@@ -1298,6 +1298,76 @@ svg { display: block; }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ------------------------------------------------------------ 同步状态气泡
+   固定在页面下方，pointer-events:none —— 同步期间不影响任何操作。
+   三种状态：同步中（转圈）/ 完成（绿色对勾）/ 失败（红色）。 */
+.sync-bubble {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 210;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 40px);
+  padding: 9px 16px;
+  border-radius: 980px;
+  background: rgba(28, 28, 30, 0.94);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  animation: bubble-in 0.24s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+.sync-bubble[hidden] { display: none; }
+.sync-bubble.is-done { background: rgba(36, 138, 61, 0.96); }
+.sync-bubble.is-error { background: rgba(215, 0, 21, 0.96); }
+
+@keyframes bubble-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.sb-icon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sb-icon svg { width: 13px; height: 13px; }
+/* 同步中：CSS 转圈，不依赖图标 */
+.sync-bubble.is-loading .sb-icon {
+  border-radius: 50%;
+  border: 1.8px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: sb-spin 0.7s linear infinite;
+}
+.sync-bubble:not(.is-loading) .sb-icon { border: none; animation: none; }
+@keyframes sb-spin { to { transform: rotate(360deg); } }
+
+.sb-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 气泡出现时把 toast 抬高，避免两个条叠在一起 */
+body.has-sync-bubble .toast { bottom: 78px; }
+
+/* 刷题页的「上一题 / 下一题」贴着屏幕底部，气泡要浮在它们上方 */
+body.is-quiz .sync-bubble { bottom: 92px; }
+/* 窄屏刷题页：底部被选项和按钮占满，气泡出现时给页面临时让出 46px，
+   气泡落在这段空隙里，不压住任何按钮（不改变布局高度，所以不会出滚动条） */
+@media (max-width: 560px) {
+  body.is-quiz.has-sync-bubble #view-quiz.is-active { padding-bottom: 46px; }
+  body.is-quiz .sync-bubble { bottom: 12px; }
+}
+
 /* ------------------------------------------------------------------ 响应式 */
 @media (max-width: 560px) {
   .app { padding: 26px 16px 56px; }

@@ -20,13 +20,11 @@
   var DEFAULT_FILENAME = 'zzll-wutong.json';
   var API = 'https://api.github.com';
   var RETRY = 3;
-  var PUSH_DELAY = 4000;      /* 数据变更后延迟推送，避免刷题时频繁请求 */
   var TIMEOUT = 15000;
 
   var listeners = [];
-  var pushTimer = null;
   var syncing = false;
-  var pending = null;      /* 进行中的 Promise：重复点击复用同一次同步 */
+  var pending = null;      /* 进行中的 Promise：重复调用复用同一次同步 */
 
   /* ---------------------------------------------------------------- 配置 */
   function readJSON(key, fallback) {
@@ -415,8 +413,7 @@
     Object.keys(merged.banks || {}).forEach(function (k) {
       wrong += (merged.banks[k].wrong || []).length;
     });
-    /* 自动同步开着的话，把刚导入的数据也推上去 */
-    schedulePush();
+    /* 导入后是否推云端由调用方决定（app 层会弹一次带通知的同步） */
     return { banks: banks, wrong: wrong };
   }
 
@@ -452,24 +449,6 @@
     return Promise.reject(new Error('浏览器不允许读取剪贴板，请手动粘贴'));
   }
 
-  /* ------------------------------------------------------------ 自动推送 */
-  function schedulePush() {
-    var cfg = config();
-    if (!cfg.autoSync || !configured()) return;
-    clearTimeout(pushTimer);
-    pushTimer = setTimeout(function () {
-      pushTimer = null;
-      var now = config();
-      if (!now.autoSync || !configured()) return;   /* 期间可能被关掉了 */
-      /* 正在同步也没关系：sync() 会复用进行中的那次，结束后下次数据变更会再排一次 */
-      sync().catch(function () { /* 自动同步失败静默，界面状态条会显示 */ });
-    }, PUSH_DELAY);
-  }
-
-  function onDataChanged() {
-    schedulePush();
-  }
-
   /* ------------------------------------------------------------ 订阅 UI */
   function notify(event) {
     listeners.forEach(function (fn) {
@@ -481,15 +460,36 @@
     listeners.push(fn);
   }
 
-  function init() {
-    global.addEventListener('zzll:data-changed', onDataChanged);
-    /* 启动后自动拉一次（有配置且开启自动同步） */
+  /** 自动同步是否可用（有配置 + 没被关掉） */
+  function autoEnabled() {
     var cfg = config();
-    if (cfg.autoSync && configured()) {
-      setTimeout(function () {
-        sync().catch(function () {});
-      }, 1200);
-    }
+    return cfg.autoSync && configured();
+  }
+
+  /**
+   * 带气泡通知的同步入口。所有同步都走这里，保证「开始 / 完成 / 失败」都有提示。
+   * 返回的是同一个 Promise（并发调用会复用）。
+   */
+  function syncWithNotice() {
+    if (!configured()) return Promise.reject(new Error('请先填写 Gist ID 与访问令牌'));
+    notify({ action: 'start' });
+    return sync().then(function (res) {
+      notify({ action: 'done', result: res });
+      return res;
+    }, function (err) {
+      notify({ action: 'error', error: err });
+      throw err;
+    });
+  }
+
+  /** 进入页面时用：只有「配置了且开着自动同步」才需要等它 */
+  function bootSync() {
+    if (!autoEnabled()) return null;
+    return syncWithNotice();
+  }
+
+  function init() {
+    /* 同步时机全部由业务侧显式触发（启动 / 整组答完 / 错题增删），不再监听数据变更 */
   }
 
   global.ZZLLSync = {
@@ -498,8 +498,11 @@
     config: config,
     saveConfig: saveConfig,
     configured: configured,
+    autoEnabled: autoEnabled,
     state: state,
     sync: sync,
+    syncWithNotice: syncWithNotice,
+    bootSync: bootSync,
     testConnection: testConnection,
     exportText: exportText,
     importText: importText,
@@ -508,7 +511,6 @@
     buildSnapshot: buildSnapshot,
     applySnapshot: applySnapshot,
     mergeSnapshots: mergeSnapshots,
-    schedulePush: schedulePush,
     isSyncing: function () { return syncing; }
   };
 })(window);

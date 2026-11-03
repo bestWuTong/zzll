@@ -21,7 +21,9 @@
     store: null,       /* 当前题库的 { Wrong, Progress } */
     session: null,
     sectionMode: 'practice',   /* 章节模式：practice 刷题 / read 阅读 */
-    toastTimer: null
+    toastTimer: null,
+    booting: true,             /* 启动阶段：同步结果先暂存，进页面后再提示 */
+    bootSyncEvent: null
   };
 
   function $(id) { return document.getElementById(id); }
@@ -734,8 +736,8 @@
     var correct = choice === q.answer;
     var isLast = index >= s.questions.length - 1;
 
-    state.store.Progress.record(q.chapterId, q.id, correct);
-    if (correct) state.store.Stats.bump(q.id);          /* 累计每题答对次数 */
+    /* 这一组全部答完才落库 + 同步一次；中途退出不写任何数据 */
+    if (allAnswered(s) && commitSession(s)) requestSync(true);
 
     if (correct && !isLast) {
       /* 答对且不是最后一题：不停顿，直接进入下一题（不展示「回答正确」过渡） */
@@ -774,6 +776,8 @@
   /* ---------------------------------------------------------------- 结果页 */
   function finishSession() {
     var s = state.session;
+    /* 兜底：正常路径在「答完最后一题」时就已落库，这里防重复 */
+    if (commitSession(s)) requestSync(true);
     var total = s.questions.length;
     var correct = correctCount(s);
     var rate = total ? correct / total : 0;
@@ -965,6 +969,7 @@
   /** 同步把数据写回本地后刷新当前视图 */
   function refreshAfterSync() {
     if ($('view-wrong').classList.contains('is-active')) renderWrong();
+
     if ($('view-home').classList.contains('is-active')) renderHome();
     renderSyncStatus();
   }
@@ -973,6 +978,89 @@
     $('btnSyncNow').disabled = busy;
     $('btnSyncTest').disabled = busy;
     $('btnSyncNow').textContent = busy ? (label || '同步中…') : '立即同步';
+  }
+
+  /* ------------------------------------------------------------ 同步气泡 */
+  var bubbleTimer = null;
+
+  /**
+   * 页面下方的同步气泡：三种状态，不拦截点击，不打断操作。
+   * kind: 'loading' | 'done' | 'error'
+   */
+  function showSyncBubble(kind, text) {
+    var el = $('syncBubble');
+    if (!el) return;
+    clearTimeout(bubbleTimer);
+    el.hidden = false;
+    el.className = 'sync-bubble is-' + kind;
+    document.body.classList.add('has-sync-bubble');
+
+    var icon = $('syncBubbleIcon');
+    if (kind === 'done') {
+      icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" ' +
+        'stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>';
+    } else if (kind === 'error') {
+      icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" ' +
+        'stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v6"></path><path d="M12 17h.01"></path>' +
+        '</svg>';
+    } else {
+      icon.innerHTML = '';   /* 转圈用 CSS 画 */
+    }
+    $('syncBubbleText').textContent = text;
+
+    /* 同步中常驻；完成/失败自动消失（失败停留久一点，够看清原因） */
+    if (kind !== 'loading') {
+      bubbleTimer = setTimeout(hideSyncBubble, kind === 'error' ? 4200 : 1500);
+    }
+  }
+
+  function hideSyncBubble() {
+    var el = $('syncBubble');
+    if (!el) return;
+    clearTimeout(bubbleTimer);
+    el.hidden = true;
+    document.body.classList.remove('has-sync-bubble');
+  }
+
+  /**
+   * 触发一次带气泡的同步。
+   * auto=true 时要求「已配置 + 自动同步开着」，否则直接跳过（不打扰用户）。
+   */
+  function requestSync(auto) {
+    if (!Sync || !Sync.configured()) return;
+    if (auto && !Sync.config().autoSync) return;
+    Sync.syncWithNotice().catch(function () { /* 失败已由气泡与状态条呈现 */ });
+  }
+
+  /**
+   * 一组题目全部答完才落库并同步（用户要求）：
+   * - 答题过程中只把答案放在内存（s.answers），不写 localStorage
+   * - 中途退出/关页面 = 这一组数据整体丢弃，不会污染练习记录
+   * - 错题集刷题不记录练习数据（不计答对次数），所以也不触发同步
+   * 返回 true 表示这次真的写入了数据（需要同步一次）。
+   */
+  function commitSession(s) {
+    if (!s || s.committed) return false;
+    s.committed = true;
+    if (s.mode === 'wrong') return false;
+
+    var wrote = false;
+    s.questions.forEach(function (q, i) {
+      var a = s.answers[i];
+      if (!a) return;
+      var ok = a.choice === q.answer;
+      state.store.Progress.record(q.chapterId, q.id, ok);
+      if (ok) state.store.Stats.bump(q.id);
+      wrote = true;
+    });
+    return wrote;
+  }
+
+  /** 一组题目是否已全部作答 */
+  function allAnswered(s) {
+    if (!s || !s.answers.length) return false;
+    for (var i = 0; i < s.answers.length; i++) if (!s.answers[i]) return false;
+    return true;
   }
 
   /* ------------------------------------------------------------- 事件绑定 */
@@ -1038,6 +1126,7 @@
       state.store.Progress.reset();
       renderHome();
       toast('已清除「' + name + '」的练习记录');
+      requestSync(true);
     });
 
     $('btnShuffle').addEventListener('click', function () {
@@ -1116,7 +1205,7 @@
       if (s) {
         var done = answeredCount(s);
         if (done > 0 && done < s.questions.length) {
-          if (!window.confirm('本次练习还没做完，确定要退出吗？')) return;
+          if (!window.confirm('这一组还没答完，退出后本次作答不会保存。\n确定要退出吗？')) return;
         }
       }
       var backToWrong = !!(s && s.mode === 'wrong');
@@ -1144,6 +1233,7 @@
         btn.disabled = true;
         btn.textContent = '已加入错题集';
         toast('已加入「' + bankTitle() + '」错题集：新增 ' + res.added + ' 题，已存在 ' + res.existed + ' 题');
+        requestSync(true);   /* 错题增删是唯一需要同步的错题集操作 */
       } else if (act === 'prune') {
         var ids = [];
         s.questions.forEach(function (q, i) {
@@ -1152,6 +1242,7 @@
         });
         var removed = state.store.Wrong.removeMany(ids);
         toast('已从「' + bankTitle() + '」错题集移除 ' + removed + ' 题');
+        requestSync(true);
         state.session = null;
         renderWrong();
         showView('wrong');
@@ -1199,6 +1290,7 @@
       $('btnWrongClear').disabled = left === 0;
       if (left === 0) renderWrong();
       toast('已移除');
+      requestSync(true);
     });
 
     /* ---- 数据同步 ---- */
@@ -1226,16 +1318,13 @@
       persistSyncForm();
       if (!Sync.configured()) { toast('请先填写 Gist ID 与访问令牌'); return; }
       setSyncBusy(true);
-      Sync.sync().then(function (res) {
+      Sync.syncWithNotice().then(function () {
         setSyncBusy(false);
         refreshAfterSync();
-        var map = { push: '已上传到云端', pull: '已从云端拉取', merge: '两端数据已合并', none: '数据已是最新' };
-        toast(map[res.action] || '同步完成');
-      }, function (err) {
+      }, function () {
         setSyncBusy(false);
         renderSyncStatus();
         refreshAfterSync();
-        toast('云同步失败：' + (err && err.message ? err.message : '未知错误') + '，继续使用本地数据');
       });
     });
 
@@ -1291,6 +1380,8 @@
         renderHome();
         if ($('view-wrong').classList.contains('is-active')) renderWrong();
         toast('已导入 ' + res.banks + ' 个题库的数据，错题共 ' + res.wrong + ' 题');
+        /* 手动导入后立刻推到云端（不要求自动同步开关） */
+        requestSync(false);
       } catch (err) {
         toast('导入失败：' + (err && err.message ? err.message : '数据格式不正确'));
       }
@@ -1303,6 +1394,7 @@
       state.store.Wrong.clear();
       renderWrong();
       toast('「' + bankTitle() + '」错题集已清空');
+      requestSync(true);
     });
 
     /* 键盘快捷键：← → 翻题，1 / 2 作答，Esc 关下拉 */
@@ -1328,11 +1420,10 @@
   }
 
   /**
-   * 撤掉启动遮罩的时机 = 题库数据就绪 + 首页已经绘制完成。
-   * - 数据没就绪时短暂轮询（最多 ~3s），超时也放行，避免永远卡在遮罩上
-   * - 双 rAF 等一帧，确保 renderHome() 的结果真的画上屏了，
-   *   否则遮罩淡出的瞬间会看到内容「弹出来」
-   * - 后台标签页不触发 rAF，另用 setTimeout 兜底
+   * 撤掉启动遮罩的时机 = 题库数据就绪 + （配置了同步时）首次同步有结果 + 首页绘制完成。
+   * - 数据没就绪时短暂轮询（最多 ~3s），超时也放行
+   * - 有同步配置时等这一次同步结束（成功或失败都算结束），最长等 6s，避免网络差时卡死
+   * - 双 rAF 等一帧，确保 renderHome() 的结果真的画上屏了
    */
   function finishBoot() {
     var tries = 0;
@@ -1340,12 +1431,33 @@
     function go() {
       if (fired) return;
       fired = true;
+      state.booting = false;
+      /* 启动同步可能刚把云端数据写回本地，而首页是同步前渲染的。
+         必须先按最新数据重绘（章节进度 / 正确率 / 错题数），再撤遮罩，
+         否则用户会看到同步前的旧数据，得手动刷新才更新。 */
+      if (state.bootSyncEvent) refreshAfterSync();
       if (window.hideBoot) window.hideBoot();
+      /* 启动那次同步的结果，进入页面后再补一条通知 */
+      if (state.bootSyncEvent) {
+        var ev = state.bootSyncEvent;
+        state.bootSyncEvent = null;
+        if (ev.action === 'error') {
+          showSyncBubble('error', '同步失败：' + (ev.error && ev.error.message ? ev.error.message : '未知错误'));
+        } else if (ev.action === 'done') {
+          showSyncBubble('done', '同步完成');
+        }
+      }
+    }
+    function ready() {
+      requestAnimationFrame(function () { requestAnimationFrame(go); });
+      setTimeout(go, 150);
     }
     (function wait() {
       if (!bankDataReady() && tries++ < 60) { setTimeout(wait, 50); return; }
-      requestAnimationFrame(function () { requestAnimationFrame(go); });
-      setTimeout(go, 150);
+      var p = Sync ? Sync.bootSync() : null;
+      if (!p) { ready(); return; }
+      var guard = new Promise(function (resolve) { setTimeout(resolve, 6000); });
+      Promise.race([p.catch(function () {}), guard]).then(ready);
     })();
   }
 
@@ -1362,16 +1474,31 @@
     watchSystemTheme();
     bind();
     renderHome();
-    /* 同步层：绑定数据变更监听 + 启动时自动拉取（有配置才生效） */
+    /* 同步层：启动同步在 finishBoot 里等结果；这里只订阅气泡事件 */
     if (Sync) {
       Sync.init();
       Sync.subscribe(function (ev) {
-        if (ev.action === 'error') renderSyncStatus();
-        else { renderSyncStatus(); refreshAfterSync(); }
+        if (ev.action === 'start') {
+          /* 加载页阶段也提示（气泡层级高于遮罩），保证「所有同步都有通知」 */
+          showSyncBubble('loading', '正在同步…');
+          return;
+        }
+        if (state.booting) {
+          /* 启动同步：先把结果记下来，进页面后补一条通知 */
+          state.bootSyncEvent = ev;
+          return;
+        }
+        if (ev.action === 'error') {
+          showSyncBubble('error', '同步失败：' + (ev.error && ev.error.message ? ev.error.message : '未知错误'));
+        } else {
+          showSyncBubble('done', '同步完成');
+        }
+        renderSyncStatus();
+        if (ev.action !== 'error') refreshAfterSync();
       });
       renderSyncStatus();
     }
-    /* 题库数据就绪 + 首页绘制完成后，才撤掉启动遮罩 */
+    /* 题库数据就绪 + 首次同步有结果后，才撤掉启动遮罩 */
     finishBoot();
   }
 
