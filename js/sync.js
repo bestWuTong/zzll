@@ -112,11 +112,16 @@
       var bank = reg[bankId];
       if (!bank || !Array.isArray(bank.chapters)) return;
       var s = Store.forBank(bankId);
-      banks[bankId] = {
+      var pack = {
         wrong: s.Wrong.ids(),
         progress: s.Progress.all(),
         stats: s.Stats.all()
       };
+      /* 打乱刷题序列是可选字段：从没用过就别带，
+         否则会把另一台设备的进度覆盖成空 */
+      var sh = s.Shuffle.raw();
+      if (sh) pack.shuffle = sh;
+      banks[bankId] = pack;
     });
     return {
       type: TYPE,
@@ -138,6 +143,10 @@
       s.Wrong.replace(Array.isArray(data.wrong) ? data.wrong : []);
       s.Progress.replace(data.progress);
       s.Stats.replace(data.stats);
+      /* shuffle 是后加的可选字段：旧快照里没有这个键时，不要动本地的进度 */
+      if (Object.prototype.hasOwnProperty.call(data, 'shuffle')) {
+        s.Shuffle.replace(data.shuffle);
+      }
     });
   }
 
@@ -145,6 +154,18 @@
   function unionInto(dst, src) {
     Object.keys(src || {}).forEach(function (k) { dst[k] = src[k]; });
     return dst;
+  }
+
+  /**
+   * 打乱刷题序列是「一次会话的状态」，不适合做并集（两端的随机序列本来就不一样），
+   * 取更新时间较晚的那份即可。清空时会写带新时间戳的空壳，所以「刷完了」也能传播。
+   */
+  function pickShuffle(a, b) {
+    if (!a) return b || null;
+    if (!b) return a;
+    var ta = typeof a.updatedAt === 'number' ? a.updatedAt : 0;
+    var tb = typeof b.updatedAt === 'number' ? b.updatedAt : 0;
+    return ta >= tb ? a : b;
   }
 
   function mergeBanks(a, b) {
@@ -191,7 +212,10 @@
         stats[q] = Math.max(stats[q] || 0, sY[q] || 0);
       });
 
-      out[bankId] = { wrong: wrong, progress: progress, stats: stats };
+      out[bankId] = {
+        wrong: wrong, progress: progress, stats: stats,
+        shuffle: pickShuffle(x.shuffle, y.shuffle)
+      };
     });
     return out;
   }

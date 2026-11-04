@@ -998,19 +998,6 @@
     }
     $('resultReview').innerHTML = review;
 
-    /* 打乱刷题：每答完一组就记一次进度（下次弹窗可「继续上次」）。
-       题库全部刷完则清掉，免得下次还显示「还剩 0 题」。 */
-    if (s.mode === 'random' && s.shuffle) {
-      var left = shuffleRemaining(s);
-      if (left.length) {
-        var ids = [];
-        s.shuffle.used.forEach(function (id) { ids.push(id); });
-        state.store.Shuffle.save(s.shuffle.size, ids, s.shuffle.rounds || 1);
-      } else {
-        state.store.Shuffle.clear();
-      }
-    }
-
     showView('result');
     setTimeout(function () {
       ring.style.strokeDashoffset = (RING_CIRC * (1 - rate)).toFixed(1);
@@ -1211,6 +1198,20 @@
       if (ok) state.store.Stats.bump(q.id);
       wrote = true;
     });
+
+    /* 打乱刷题：进度要在这里落库 —— 调用方会在 commitSession 之后立刻触发同步，
+       放到 finishSession 里就晚了一步，推上去的快照不含本组 */
+    if (s.mode === 'random' && s.shuffle) {
+      var left = shuffleRemaining(s);
+      if (left.length) {
+        var ids = [];
+        s.shuffle.used.forEach(function (id) { ids.push(id); });
+        state.store.Shuffle.save(s.shuffle.size, ids, s.shuffle.rounds || 1);
+      } else {
+        state.store.Shuffle.clear();
+      }
+    }
+
     return wrote;
   }
 

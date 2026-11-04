@@ -343,8 +343,33 @@
         });
       },
 
+      /** 原始记录（含 updatedAt），同步层打包用；从没写过返回 null */
+      raw: function () {
+        var v = readJSON(shuffleKey, null);
+        return v && typeof v === 'object' ? v : null;
+      },
+
+      /** 同步层整表写入（静默，不触发推送） */
+      replace: function (obj) {
+        if (!obj || typeof obj !== 'object') {
+          try { global.localStorage.removeItem(shuffleKey); } catch (e) {}
+          return;
+        }
+        var used = Array.isArray(obj.used) ? obj.used.filter(function (x) {
+          return typeof x === 'string' && x;
+        }) : [];
+        writeJSON(shuffleKey, {
+          size: typeof obj.size === 'number' && obj.size > 0 ? obj.size : 0,
+          used: used,
+          rounds: typeof obj.rounds === 'number' && obj.rounds > 0 ? obj.rounds : 0,
+          updatedAt: typeof obj.updatedAt === 'number' ? obj.updatedAt : 0
+        });
+      },
+
+      /* 清空：写一个空壳而不是删 key —— 保留「什么时候清的」，
+         否则这台设备上的「已刷完」没法传播到另一台（会被对方的旧进度合回来） */
       clear: function () {
-        try { global.localStorage.removeItem(shuffleKey); } catch (e) {}
+        writeJSON(shuffleKey, { size: 0, used: [], rounds: 0, updatedAt: Date.now() });
       }
     };
 
