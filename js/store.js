@@ -376,7 +376,91 @@
       }
     };
 
-    return { bankId: bankId, Wrong: Wrong, Progress: Progress, Stats: Stats, Shuffle: Shuffle };
+    /**
+     * 清理「题库里已经不存在的题目 / 章节」留下的记录。
+     * 题库更新删题或改 id 之后，旧 id 会一直留在存储里：界面统计虚高、
+     * 错题集里那几条永远显示不出来、同步载荷也白白变大。
+     * 传进来的 bank 必须完整可信（有 chapters、每章都有题目），否则直接跳过。
+     * 返回删除统计 { progress, stats, wrong, chapters }；没删任何东西返回 null。
+     */
+    function prune(bank) {
+      var chapters = (bank && bank.chapters) || [];
+      if (!chapters.length) return null;
+
+      var validQ = {}, validCh = {};
+      chapters.forEach(function (ch) {
+        validCh[ch.id] = 1;
+        (ch.questions || []).forEach(function (q) { validQ[q.id] = 1; });
+      });
+
+      var removed = { progress: 0, stats: 0, wrong: 0, chapters: 0 };
+      var progOld = readJSON(progressKey, {}) || {};
+      var statsOld = readJSON(correctKey, {}) || {};
+      var wrongOld = Wrong.ids();
+
+      /* ---- 先算「要删多少」，别急着写 ---- */
+      var progNew = {};
+      Object.keys(progOld).forEach(function (cid) {
+        var p = progOld[cid] || {};
+        var ch = null;
+        for (var i = 0; i < chapters.length; i++) {
+          if (chapters[i].id === cid) { ch = chapters[i]; break; }
+        }
+        var seen = {}, correct = {}, kept = 0;
+        if (ch) {
+          (ch.questions || []).forEach(function (q) {
+            if (p.seen && p.seen[q.id]) { seen[q.id] = 1; kept++; }
+            if (p.correct && p.correct[q.id]) correct[q.id] = 1;
+          });
+        }
+        removed.progress += Object.keys(p.seen || {}).length - kept;
+        if (!ch) removed.chapters++;
+        if (kept) progNew[cid] = { seen: seen, correct: correct };
+      });
+
+      var statsNew = {};
+      Object.keys(statsOld).forEach(function (qid) {
+        if (validQ[qid]) statsNew[qid] = statsOld[qid];
+        else removed.stats++;
+      });
+
+      var wrongNew = wrongOld.filter(function (id) { return validQ[id]; });
+      removed.wrong = wrongOld.length - wrongNew.length;
+
+      /* ---- 安全阀：删得太多说明更像「题库 id 整体变了」而不是几道题被删，
+              这种时候宁可不清理（否则章节重排一次就把整份记录抹掉） ---- */
+      var oldTotal = 0;
+      Object.keys(progOld).forEach(function (cid) {
+        oldTotal += Object.keys((progOld[cid] || {}).seen || {}).length;
+      });
+      oldTotal += Object.keys(statsOld).length + wrongOld.length;
+      var cutTotal = removed.progress + removed.stats + removed.wrong;
+      if (!cutTotal && !removed.chapters) return null;
+      if (oldTotal >= 20 && cutTotal / oldTotal > 0.3) {
+        console.warn('[zzll] 失效记录占比过高（' + cutTotal + '/' + oldTotal +
+          '），疑似题库 id 规则变化，已跳过自动清理');
+        return null;
+      }
+
+      /* ---- 落盘前留一份备份，误删还有得救 ---- */
+      try {
+        writeJSON('zzll.prune.backup.' + bankId + '.v1', {
+          at: Date.now(),
+          progress: progOld, stats: statsOld, wrong: wrongOld
+        });
+      } catch (e) { /* 配额不足就算了，不影响主流程 */ }
+
+      writeJSON(progressKey, progNew);
+      writeJSON(correctKey, statsNew);
+      writeJSON(wrongKey, wrongNew);
+      notifyChange();   /* 让同步层知道本地变了，把清理结果推上去 */
+      return removed;
+    }
+
+    return {
+      bankId: bankId, Wrong: Wrong, Progress: Progress, Stats: Stats,
+      Shuffle: Shuffle, prune: prune
+    };
   }
 
   /* --------------------------------------------------------------- 题库选择 */

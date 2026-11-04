@@ -1637,13 +1637,37 @@
 
   /* ---------------------------------------------------------------- 启动 */
   /** 题库数据是否真的可用：当前题库存在、有章节、且每章都有题目 */
-  function bankDataReady() {
-    var bank = state.bank;
+  function bankDataReady(bank) {
+    bank = bank || state.bank;
     if (!bank || !bank.chapters || !bank.chapters.length) return false;
     for (var i = 0; i < bank.chapters.length; i++) {
       if (!bank.chapters[i].questions || !bank.chapters[i].questions.length) return false;
     }
     return true;
+  }
+
+  /**
+   * 启动时清掉「题库里已经不存在的题目」留下的记录（进度 / 答对次数 / 错题集）。
+   * 题库更新删题或改 id 后这些旧 id 会一直堆着，既让统计虚高，也让同步载荷变大。
+   * 只对数据完整的题库动手：题库没加载好时宁可不清理，避免把数据全删了。
+   */
+  function pruneAllBanks() {
+    var total = { progress: 0, stats: 0, wrong: 0, chapters: 0 };
+    (state.banks || []).forEach(function (b) {
+      if (!bankDataReady(b)) return;
+      var r = null;
+      try {
+        r = Store.forBank(b.id).prune(b);
+      } catch (e) { r = null; }
+      if (!r) return;
+      total.progress += r.progress;
+      total.stats += r.stats;
+      total.wrong += r.wrong;
+      total.chapters += r.chapters;
+    });
+    if (total.progress || total.stats || total.wrong || total.chapters) {
+      console.log('[zzll] 已清理失效记录', total);
+    }
   }
 
   /**
@@ -1694,6 +1718,8 @@
     /* 旧版本只有一个题库，错题集/进度存在无题库维度的 key 里，搬到超格名下。
        存储读取是懒加载的，这里搬完就可以直接渲染。 */
     Store.Banks.migrateLegacy();
+    /* 题库更新后残留的旧题目 id：先清掉，再渲染和同步，避免统计虚高、载荷变大 */
+    pruneAllBanks();
     /* 章节模式：读缓存（默认刷题），首屏不加滑动动画 */
     applySectionMode(Store.SectionMode.get(), false);
     renderThemeBtn();
