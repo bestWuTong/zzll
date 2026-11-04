@@ -260,6 +260,18 @@
       <p id="modalSub">从全部题目中随机抽取</p>
     </div>
 
+    <!-- 上次没刷完的序列：有进度才显示 -->
+    <button class="resume-card" id="btnResumeShuffle" type="button" hidden>
+      <span class="rc-text">
+        <span class="rc-title">继续上次</span>
+        <span class="rc-desc" id="resumeDesc"></span>
+      </span>
+      <svg class="rc-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 5l7 7-7 7"></path>
+      </svg>
+    </button>
+
     <label class="modal-check">
       <input type="checkbox" id="optPriority" checked>
       <span class="mc-box" aria-hidden="true">

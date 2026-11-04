@@ -111,6 +111,7 @@
     var wrongKeyV1 = 'zzll.wrong.' + bankId + '.v1';
     var progressKey = 'zzll.progress.' + bankId + '.v1';
     var correctKey = 'zzll.correct.' + bankId + '.v1';
+    var shuffleKey = 'zzll.shuffle.progress.' + bankId + '.v1';
 
     /** 旧版错题集存的是整题对象，这里一次性转成 id 数组（保留旧 key 作备份） */
     function migrateWrong() {
@@ -311,7 +312,43 @@
       }
     };
 
-    return { bankId: bankId, Wrong: Wrong, Progress: Progress, Stats: Stats };
+    /* 打乱刷题序列：记录「上次未完成」的进度，供弹窗里的「继续上次」使用。
+       - 按题库隔离（used 里是题目 id，跨题库没意义）
+       - 只在**每组答完后**写入；中途退出的那一组作废，不会被记录
+       - 只存本机，不进同步快照 */
+    var Shuffle = {
+      key: shuffleKey,
+
+      get: function () {
+        var v = readJSON(shuffleKey, null);
+        if (!v || typeof v !== 'object') return null;
+        var used = Array.isArray(v.used) ? v.used.filter(function (x) {
+          return typeof x === 'string' && x;
+        }) : [];
+        if (!used.length) return null;
+        return {
+          size: typeof v.size === 'number' && v.size > 0 ? v.size : used.length,
+          used: used,
+          rounds: typeof v.rounds === 'number' && v.rounds > 0 ? v.rounds : 1,
+          updatedAt: typeof v.updatedAt === 'number' ? v.updatedAt : 0
+        };
+      },
+
+      save: function (size, usedIds, rounds) {
+        writeJSON(shuffleKey, {
+          size: size,
+          used: (usedIds || []).slice(),
+          rounds: rounds || 0,
+          updatedAt: Date.now()
+        });
+      },
+
+      clear: function () {
+        try { global.localStorage.removeItem(shuffleKey); } catch (e) {}
+      }
+    };
+
+    return { bankId: bankId, Wrong: Wrong, Progress: Progress, Stats: Stats, Shuffle: Shuffle };
   }
 
   /* --------------------------------------------------------------- 题库选择 */

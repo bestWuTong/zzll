@@ -23,7 +23,8 @@
     sectionMode: 'practice',   /* 章节模式：practice 刷题 / read 阅读 */
     toastTimer: null,
     booting: true,             /* 启动阶段：同步结果先暂存，进页面后再提示 */
-    bootSyncEvent: null
+    bootSyncEvent: null,
+    resumeProgress: null       /* 打乱刷题：上次未完成的序列（弹窗里展示用） */
   };
 
   function $(id) { return document.getElementById(id); }
@@ -585,6 +586,62 @@
     return allQuestions().filter(function (q) { return !used.has(q.id); });
   }
 
+  /* -------------------------------------------------- 打乱刷题：续刷上次 */
+
+  /** 题库里还没出过的题（按 id 数组过滤，供「继续上次」估剩余量） */
+  function unpickedQuestions(usedIds) {
+    var used = {};
+    (usedIds || []).forEach(function (id) { used[id] = 1; });
+    return allQuestions().filter(function (q) { return !used[q.id]; });
+  }
+
+  /** 弹窗顶部「继续上次」：有进度、且题库里确实还有题时才显示 */
+  function renderResumeCard() {
+    var card = $('btnResumeShuffle');
+    if (!card) return;
+    var prog = state.store.Shuffle.get();
+    var left = prog ? unpickedQuestions(prog.used) : [];
+    if (!prog || !left.length) {
+      state.resumeProgress = null;
+      card.hidden = true;
+      return;
+    }
+    state.resumeProgress = prog;
+    $('resumeDesc').textContent = '已完成 ' + prog.rounds + ' 组 · 每组 ' + prog.size +
+      ' 题 · 还剩 ' + left.length + ' 题';
+    card.hidden = false;
+  }
+
+  function openShuffleModal() {
+    /* 勾选状态记住上次的选择（本机偏好，不参与云同步），默认勾选 */
+    $('optPriority').checked = Store.ShufflePriority.get();
+    renderResumeCard();
+    $('shuffleModal').hidden = false;
+  }
+
+  /** 接着上次的序列再抽一组（沿用原来的每组题量与「已出过」的题） */
+  function resumeShuffle() {
+    var prog = state.resumeProgress;
+    if (!prog) return;
+    var left = unpickedQuestions(prog.used);
+    if (!left.length) { toast('上次的题目已经刷完了'); return; }
+
+    var used = new Set();
+    prog.used.forEach(function (id) { used.add(id); });
+    var priority = Store.ShufflePriority.get();
+    var take = Math.min(prog.size, left.length);
+    var picked = pickQuestions(left, take, priority);
+    picked.forEach(function (q) { used.add(q.id); });
+
+    startSession({
+      mode: 'random',
+      title: '打乱刷题 · ' + picked.length + ' 题',
+      questions: picked,
+      shuffle: { size: prog.size, used: used, priority: priority, rounds: prog.rounds + 1 }
+    });
+    toast('继续上次：第 ' + (prog.rounds + 1) + ' 组，' + picked.length + ' 题');
+  }
+
   /**
    * 从候选池里取 n 题。
    * priority=true 时按「答对次数最少优先」：先按次数分桶，
@@ -642,7 +699,10 @@
       mode: 'random',
       title: '打乱刷题 · ' + picked.length + ' 题',
       questions: picked,
-      shuffle: { size: size, used: used, priority: priority }
+      shuffle: {
+        size: size, used: used, priority: priority,
+        rounds: (s.shuffle.rounds || 1) + 1
+      }
     });
     toast(remaining.length > picked.length
       ? '下一组 ' + picked.length + ' 题（还剩 ' + (remaining.length - picked.length) + ' 题）'
@@ -938,6 +998,19 @@
     }
     $('resultReview').innerHTML = review;
 
+    /* 打乱刷题：每答完一组就记一次进度（下次弹窗可「继续上次」）。
+       题库全部刷完则清掉，免得下次还显示「还剩 0 题」。 */
+    if (s.mode === 'random' && s.shuffle) {
+      var left = shuffleRemaining(s);
+      if (left.length) {
+        var ids = [];
+        s.shuffle.used.forEach(function (id) { ids.push(id); });
+        state.store.Shuffle.save(s.shuffle.size, ids, s.shuffle.rounds || 1);
+      } else {
+        state.store.Shuffle.clear();
+      }
+    }
+
     showView('result');
     setTimeout(function () {
       ring.style.strokeDashoffset = (RING_CIRC * (1 - rate)).toFixed(1);
@@ -1214,10 +1287,13 @@
       requestSync(true);
     });
 
-    $('btnShuffle').addEventListener('click', function () {
-      /* 勾选状态记住上次的选择（本机偏好，不参与云同步），默认勾选 */
-      $('optPriority').checked = Store.ShufflePriority.get();
-      $('shuffleModal').hidden = false;
+    $('btnShuffle').addEventListener('click', openShuffleModal);
+
+    /* 「继续上次」：接着上次的序列再抽一组 */
+    $('btnResumeShuffle').addEventListener('click', function () {
+      if (!state.resumeProgress) return;
+      $('shuffleModal').hidden = true;
+      resumeShuffle();
     });
 
     /* 勾一下记一下，不必等点「开始」才落盘 */
@@ -1264,6 +1340,16 @@
       if (!opt) return;
       var n = parseInt(opt.getAttribute('data-count'), 10);
       var priority = !!($('optPriority') && $('optPriority').checked);
+
+      /* 选了新的题量 = 开一轮新的序列：上次没刷完的进度要先清掉，提前问一声 */
+      if (state.resumeProgress) {
+        var ok = window.confirm('开始新的打乱刷题会清空上次未完成的进度（已完成 ' +
+          state.resumeProgress.rounds + ' 组），确定吗？');
+        if (!ok) return;          /* 取消就留在弹窗里，不动进度 */
+        state.store.Shuffle.clear();
+        state.resumeProgress = null;
+      }
+
       modal.hidden = true;
       var pool = allQuestions();
       if (!pool.length) { toast('题库为空'); return; }
@@ -1274,7 +1360,7 @@
         mode: 'random',
         title: '打乱刷题 · ' + picked.length + ' 题',
         questions: picked,
-        shuffle: { size: n, used: used, priority: priority }
+        shuffle: { size: n, used: used, priority: priority, rounds: 1 }
       });
     });
 
