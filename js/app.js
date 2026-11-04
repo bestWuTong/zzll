@@ -1215,9 +1215,14 @@
     });
 
     $('btnShuffle').addEventListener('click', function () {
-      /* 每次打开都回到默认：勾选「优先推送答对次数最少的题目」 */
-      $('optPriority').checked = true;
+      /* 勾选状态记住上次的选择（本机偏好，不参与云同步），默认勾选 */
+      $('optPriority').checked = Store.ShufflePriority.get();
       $('shuffleModal').hidden = false;
+    });
+
+    /* 勾一下记一下，不必等点「开始」才落盘 */
+    $('optPriority').addEventListener('change', function () {
+      Store.ShufflePriority.set(!!$('optPriority').checked);
     });
 
     /* 章节模式开关：刷题 / 阅读 */

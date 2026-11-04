@@ -370,10 +370,29 @@
     }
   };
 
+  /* -------------------------------------------------- 打乱刷题偏好
+     全局偏好，不分题库、不参与云同步：是否「优先推送答对次数最少的题目」。
+     默认开（没存过 / 值不合法都按开处理）。 */
+  var SHUFFLE_PRIORITY_KEY = 'zzll.shufflepriority.v1';
+
+  var ShufflePriority = {
+    key: SHUFFLE_PRIORITY_KEY,
+
+    get: function () {
+      var v = storageGet(SHUFFLE_PRIORITY_KEY);
+      return v === null || v === undefined || v === '' ? true : v === '1';
+    },
+
+    set: function (on) {
+      storageSet(SHUFFLE_PRIORITY_KEY, on ? '1' : '0');
+    }
+  };
+
   global.ZZLLStore = {
     forBank: createBankStore,
     Banks: Banks,
     SectionMode: SectionMode,
+    ShufflePriority: ShufflePriority,
     /* 同步层用：本地数据最后修改时间（毫秒） */
     dataUpdatedAt: function () {
       return Number(storageGet(DATA_UPDATED_KEY) || 0) || 0;
