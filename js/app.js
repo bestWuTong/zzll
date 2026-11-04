@@ -1387,9 +1387,8 @@
       requestSync(true);
     });
 
-    /* ---- 数据同步 ---- */
+    /* ---- 数据同步（入口只在首页右上角，错题集页不再重复放一个） ---- */
     $('syncBtn').addEventListener('click', openSyncModal);
-    $('btnWrongSync').addEventListener('click', openSyncModal);
 
     ['syncGist', 'syncToken', 'syncFilename'].forEach(function (id) {
       $(id).addEventListener('change', function () {
