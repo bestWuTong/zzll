@@ -492,6 +492,43 @@ svg { display: block; }
 .foot-clear:active { transform: scale(0.97); }
 .foot-clear:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* 开发者选项入口：比「清除练习记录」更低调，纯文字 */
+.foot-dev {
+  display: block;
+  margin: 10px auto 0;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-3);
+  opacity: 0.7;
+  border-radius: 980px;
+  transition: opacity 0.18s, color 0.18s, background 0.18s;
+}
+.foot-dev:hover { opacity: 1; color: var(--text-2); background: var(--line); }
+
+/* ------------------------------------------------------------ 开发者选项弹窗 */
+.dev-item {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 16px 0 12px;
+  text-align: left;
+}
+.dev-item-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.dev-item-desc { font-size: 12.5px; line-height: 1.5; color: var(--text-3); }
+.dev-action { width: 100%; }
+.dev-result {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-align: left;
+  color: var(--text-2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.dev-result[hidden] { display: none; }
+
 /* --------------------------------------------------------------- 顶部导航条 */
 .topbar {
   display: flex;

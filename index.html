@@ -150,6 +150,9 @@
 
     <!-- 清空当前题库的章节练习记录（答对次数 / 正确率 / 已练进度），不影响错题集 -->
     <button class="foot-clear" id="btnClearRecord" type="button">清除练习记录</button>
+
+    <!-- 开发者选项：数据维护入口，后续调试功能都收在这里 -->
+    <button class="foot-dev" id="btnDev" type="button">开发者选项</button>
   </main>
 
   <!-- ==================== 错题集 ==================== -->
@@ -312,6 +315,34 @@
 <div class="sync-bubble" id="syncBubble" hidden>
   <span class="sb-icon" id="syncBubbleIcon"></span>
   <span class="sb-text" id="syncBubbleText">正在同步…</span>
+</div>
+
+<!-- ==================== 弹窗：开发者选项 ==================== -->
+<div class="modal" id="devModal" hidden>
+  <div class="modal-mask" data-close="1"></div>
+  <div class="modal-card modal-sync" role="dialog" aria-modal="true" aria-label="开发者选项">
+    <button class="sync-close" data-close="1" type="button" aria-label="关闭">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+           stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"></path></svg>
+    </button>
+
+    <div class="sync-scroll">
+      <div class="modal-head">
+        <h3>开发者选项</h3>
+        <p>数据维护，后续的调试功能也会加在这里</p>
+      </div>
+
+      <div class="dev-item">
+        <span class="dev-item-title">清理失效记录</span>
+        <span class="dev-item-desc">删掉题库里已不存在的题目留下的章节进度、答对次数与错题。
+          题库更新删题后统计会虚高（比如「共 10 题 · 已练 11」），清一次即可。</span>
+      </div>
+      <button class="btn btn-ghost dev-action" id="btnPrune" type="button">清理一次</button>
+      <p class="dev-result" id="devPruneResult" hidden></p>
+
+      <button class="modal-cancel" data-close="1" type="button">关闭</button>
+    </div>
+  </div>
 </div>
 
 <!-- ==================== 弹窗：数据同步 ==================== -->

@@ -437,9 +437,8 @@
       var cutTotal = removed.progress + removed.stats + removed.wrong;
       if (!cutTotal && !removed.chapters) return null;
       if (oldTotal >= 20 && cutTotal / oldTotal > 0.3) {
-        console.warn('[zzll] 失效记录占比过高（' + cutTotal + '/' + oldTotal +
-          '），疑似题库 id 规则变化，已跳过自动清理');
-        return null;
+        /* 交给调用方提示，不要静默跳过 —— 否则用户以为清完了 */
+        return { blocked: true, cut: cutTotal, total: oldTotal };
       }
 
       /* ---- 落盘前留一份备份，误删还有得救 ---- */

@@ -1330,6 +1330,48 @@
       requestSync(true);
     });
 
+    /* ---- 开发者选项：数据维护入口（后续调试功能都挂这里） ---- */
+    $('btnDev').addEventListener('click', function () {
+      $('devPruneResult').hidden = true;
+      $('devPruneResult').textContent = '';
+      $('devModal').hidden = false;
+    });
+
+    var devModal = $('devModal');
+    devModal.addEventListener('click', function (e) {
+      var hit = e.target.closest ? e.target.closest('[data-close]') : null;
+      if (hit) devModal.hidden = true;
+    });
+
+    /* 手动清理失效记录：不点就永远不触发（启动时不再自动执行） */
+    $('btnPrune').addEventListener('click', function () {
+      var r = pruneAllBanks();
+      var box = $('devPruneResult');
+      box.hidden = false;
+
+      if (r.blocked.length) {
+        var bad = r.blocked[0];
+        box.textContent = '已跳过「' + bad.name + '」：失效记录占 ' + bad.cut + '/' + bad.total +
+          '（超过 30%），更像是题库题目 id 整体变了。为免误删整份记录，这次没有清理。';
+        return;
+      }
+
+      var n = r.progress + r.stats + r.wrong + r.chapters;
+      if (!n) {
+        box.textContent = '没有需要清理的记录：现有记录都对应题库里还能找到的题目。';
+        return;
+      }
+      var parts = [];
+      if (r.progress) parts.push('章节进度 ' + r.progress + ' 条');
+      if (r.stats) parts.push('答对次数 ' + r.stats + ' 条');
+      if (r.wrong) parts.push('错题 ' + r.wrong + ' 条');
+      if (r.chapters) parts.push('整章失效 ' + r.chapters + ' 个');
+      box.textContent = '已清理：' + parts.join('、') + '。旧数据有备份，可在控制台恢复。';
+
+      renderHome();
+      requestSync(true);   /* 让云端也干净（未配置或关了自动同步则跳过） */
+    });
+
     $('btnShuffle').addEventListener('click', openShuffleModal);
 
     /* 「继续上次」：接着上次的序列再抽一组 */
@@ -1647,12 +1689,14 @@
   }
 
   /**
-   * 启动时清掉「题库里已经不存在的题目」留下的记录（进度 / 答对次数 / 错题集）。
-   * 题库更新删题或改 id 后这些旧 id 会一直堆着，既让统计虚高，也让同步载荷变大。
+   * 清掉「题库里已经不存在的题目」留下的记录（进度 / 答对次数 / 错题集）。
+   * 只在开发者选项里手动触发：题库更新删题或改 id 后这些旧 id 会一直堆着，
+   * 既让统计虚高，也让同步载荷变大。
    * 只对数据完整的题库动手：题库没加载好时宁可不清理，避免把数据全删了。
+   * 返回各项删除条数。
    */
   function pruneAllBanks() {
-    var total = { progress: 0, stats: 0, wrong: 0, chapters: 0 };
+    var total = { progress: 0, stats: 0, wrong: 0, chapters: 0, blocked: [] };
     (state.banks || []).forEach(function (b) {
       if (!bankDataReady(b)) return;
       var r = null;
@@ -1660,14 +1704,16 @@
         r = Store.forBank(b.id).prune(b);
       } catch (e) { r = null; }
       if (!r) return;
+      if (r.blocked) {
+        total.blocked.push({ id: b.id, name: b.name, cut: r.cut, total: r.total });
+        return;
+      }
       total.progress += r.progress;
       total.stats += r.stats;
       total.wrong += r.wrong;
       total.chapters += r.chapters;
     });
-    if (total.progress || total.stats || total.wrong || total.chapters) {
-      console.log('[zzll] 已清理失效记录', total);
-    }
+    return total;
   }
 
   /**
@@ -1718,8 +1764,6 @@
     /* 旧版本只有一个题库，错题集/进度存在无题库维度的 key 里，搬到超格名下。
        存储读取是懒加载的，这里搬完就可以直接渲染。 */
     Store.Banks.migrateLegacy();
-    /* 题库更新后残留的旧题目 id：先清掉，再渲染和同步，避免统计虚高、载荷变大 */
-    pruneAllBanks();
     /* 章节模式：读缓存（默认刷题），首屏不加滑动动画 */
     applySectionMode(Store.SectionMode.get(), false);
     renderThemeBtn();
