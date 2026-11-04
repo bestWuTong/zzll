@@ -254,7 +254,7 @@
 
     $('bankMenu').innerHTML = state.banks.map(function (b) {
       var on = !!(bank && b.id === bank.id);
-      var overall = Store.forBank(b.id).Progress.overall();
+      var overall = bankProgress(Store.forBank(b.id), b);
       var meta = countQuestions(b) + ' 题 · ' + (b.chapters || []).length + ' 章';
       if (overall.answered) meta += ' · 已练 ' + overall.answered;
       return '' +
@@ -297,7 +297,7 @@
 
     var total = countQuestions(bank);
     var wrongCount = state.store.Wrong.count();
-    var overall = state.store.Progress.overall();
+    var overall = bankProgress(state.store, bank);
 
     var stats = [
       '题库 <b>' + total + '</b> 题',
@@ -317,6 +317,48 @@
     if ($('btnClearRecord')) $('btnClearRecord').disabled = !recorded;
   }
 
+  /**
+   * 按「题库里现存的题目」统计一章的进度。
+   * 不能直接用 Store 的 chapterStats：它数的是 seen / correct 集合的大小，
+   * 题库更新删掉或改过 id 之后，旧 id 会一直留在存储里，
+   * 于是会出现「共 10 题 · 已练 11」这种越界数字。
+   */
+  function chapterProgress(s, ch) {
+    var p = s.Progress.all()[ch.id] || {};
+    var seen = p.seen || {}, correct = p.correct || {};
+    var questions = ch.questions || [];
+    var answered = 0, ok = 0;
+    questions.forEach(function (q) {
+      if (seen[q.id]) {
+        answered++;
+        if (correct[q.id]) ok++;
+      }
+    });
+    return {
+      total: questions.length,
+      answered: answered,
+      correct: ok,
+      rate: answered ? ok / answered : 0
+    };
+  }
+
+  /** 整册统计（同样只认现存题目），chapters 为空时返回 0 */
+  function bankProgress(s, bank) {
+    var all = s.Progress.all();
+    var answered = 0, ok = 0;
+    ((bank && bank.chapters) || []).forEach(function (ch) {
+      var p = all[ch.id] || {};
+      var seen = p.seen || {}, correct = p.correct || {};
+      (ch.questions || []).forEach(function (q) {
+        if (seen[q.id]) {
+          answered++;
+          if (correct[q.id]) ok++;
+        }
+      });
+    });
+    return { answered: answered, correct: ok, rate: answered ? ok / answered : 0 };
+  }
+
   function renderChapterList() {
     var bank = state.bank;
     if (!bank) {
@@ -328,7 +370,7 @@
 
     $('chapterList').innerHTML = (bank.chapters || []).map(function (ch) {
       var count = (ch.questions || []).length;
-      var st = state.store.Progress.chapterStats(ch.id);
+      var st = chapterProgress(state.store, ch);
       /* 只有整章每道题都练过才算「完成」，完成前不显示正确率（样本不完整会误导） */
       var done = count > 0 && st.answered >= count;
       var meta = count + ' 题';
@@ -1274,7 +1316,7 @@
     $('btnClearRecord').addEventListener('click', function () {
       if (!state.store) return;
       var name = bankTitle();
-      var answered = state.store.Progress.overall().answered;
+      var answered = bankProgress(state.store, state.bank).answered;
       var counted = Object.keys(state.store.Stats.all()).length;
       if (!answered && !counted) { toast('「' + name + '」还没有练习记录'); return; }
       if (!window.confirm(

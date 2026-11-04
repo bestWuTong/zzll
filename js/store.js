@@ -232,6 +232,8 @@
         notifyChange();
       },
 
+      /* 纯按存储里的集合计数 —— 会包含题库更新后已不存在的题目 id，
+         所以界面统计请用 app.js 的 chapterProgress / bankProgress（按现存题目过滤） */
       chapterStats: function (chapterId) {
         var ch = this.all()[chapterId];
         if (!ch) return { answered: 0, correct: 0, rate: 0 };
@@ -240,6 +242,7 @@
         return { answered: answered, correct: correct, rate: answered ? correct / answered : 0 };
       },
 
+      /* 同上：按集合计数，可能含已删除题目，界面统计用 app.js 的 bankProgress */
       overall: function () {
         var all = this.all();
         var answered = 0, correct = 0;
