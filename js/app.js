@@ -1011,21 +1011,21 @@
     if (!window.ZZLLConfetti) return;
     var wrap = document.querySelector('#view-result .result-wrap');
     var canvas = $('confetti');
-    var hint = $('resultHint');
-    if (!wrap || !canvas || !hint) return;
+    if (!wrap || !canvas) return;
 
-    /* 画布覆盖整个结果区（顶部再往上延伸一点，避免礼炮顶点被裁）。
-       原版是把整个视口当画布、炮口在 origin.y≈0.6 处，这里同理：
-       炮口放在提示文字下沿，纸屑有足够空间升起再落下淡出。 */
-    var top = -24;
-    var height = wrap.offsetHeight + 24;
+    /* 原版 Basic Cannon 是「整个视口当画布，origin: { y: 0.6 }」。
+       这里把画布从视口顶部铺到结果区底部，炮口取画布高度的 60%，
+       这样纸屑往上飞时不会在半空中被画布上边缘切断。 */
+    var rect = wrap.getBoundingClientRect();
+    var top = -rect.top;            /* 负值：画布从视口顶部开始 */
+    var height = rect.bottom;       /* 一直铺到结果区底部（视口坐标） */
 
     canvas.style.left = '0px';
     canvas.style.top = top + 'px';
     canvas.style.width = wrap.clientWidth + 'px';
     canvas.style.height = height + 'px';
 
-    window.ZZLLConfetti.fire(canvas, hint.offsetTop + hint.offsetHeight - top);
+    window.ZZLLConfetti.fire(canvas, height * 0.6);
   }
 
   function finishSession() {

@@ -1,14 +1,20 @@
 /* ==========================================================================
    彩带引擎 —— 复刻 canvas-confetti 的「Basic Cannon」
    --------------------------------------------------------------------------
-   两侧各一发礼炮，朝屏幕内侧上方斜射。粒子形态与物理**照抄原版**：
-   不是"旋转的实心方块"，而是会被裁成细纸条、边飞边翻面的四边形。
+   官网该效果就是一个居中礼炮、垂直向上、扩散 70°：
+
+       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } })
+
+   其余全部取默认值。粒子形态与物理**照抄原版源码**：
+   不是"旋转的实心方块"，而是会被裁成细纸条、边飞边翻面的四边形
+   （正方形占一半，另一半是椭圆）。
 
      wobbleX = x + 10*cos(wobble)      ← 纸条的另一端
      wobbleY = y + 10*sin(wobble)
      x1 = x + random*tiltCos           ← random ∈ [2,3)，决定纸条厚度
      y1 = y + random*tiltSin
      四边形：(x,y) → (wobbleX, y1) → (x2, y2) → (x1, wobbleY)
+     圆形：  椭圆中心 (x,y)，半径 |x2-x1|*0.6 / |y2-y1|*0.6，旋转 π/10*wobble
 
    tiltAngle 每帧 +0.1，tiltSin/Cos 缓慢变化 —— 纸条就在"完全展开"和
    "被压成一条线"之间反复翻转，这是原版纸屑感的来源。
@@ -22,7 +28,7 @@
      alpha = 1 - tick/totalTicks                          // 全程线性淡出
 
    性能取舍：
-   1. 粒子数固定（每侧 100，与原版示例 particleCount 同量级），不随面积放大
+   1. 粒子数固定 100（原版该效果就是 100），不随面积放大
    2. 设备像素比上限 2 —— 3x 屏按 2x 绘制，视觉几乎无差别
    3. 单条 rAF 循环；按真实时间换算成「帧」推进物理，120Hz 屏不会翻倍加速
    4. 每帧只算一次衰减系数（所有粒子共用），避免逐粒子 Math.pow
@@ -34,24 +40,27 @@
 (function (global) {
   'use strict';
 
-  /* 站点配色（蓝 / 绿 / 橙 / 红 / 紫） */
-  var COLORS = ['#0071e3', '#34c759', '#ff9f0a', '#ff375f', '#5e5ce6'];
+  /* 原版默认配色 */
+  var COLORS = ['#26ccff', '#a25afd', '#ff5e7e', '#88ff5a', '#fcff42', '#ffa62d', '#ff36ff'];
 
   /* ---- 与原版默认值对齐（均为「每帧」，按 60fps 计） ---- */
+  var PARTICLE_COUNT = 100;  /* 单炮 100 个 */
   var START_VELOCITY = 45;   /* px/帧；实际取 0.5 ~ 1.5 倍 */
   var DECAY = 0.9;           /* 每帧速度乘 0.9 */
   var GRAVITY = 3;           /* 每帧额外 +3px（源码里 gravity:1 内部乘 3） */
   var TICKS = 200;           /* 寿命 200 帧 ≈ 3.3 秒 */
   var SCALAR = 1;            /* 尺寸系数，纸条长度 = 10 * scalar */
-  var SPREAD = 60;           /* 扩散角，两侧各 ±30° */
+  var SPREAD = 70;           /* Basic Cannon 的 spread */
+  var ANGLE = 90;            /* 默认 angle：垂直向上 */
 
   var SIZE = 10 * SCALAR;
+  var OVAL = 0.6;            /* 原版 ovalScalar：圆形粒子的半径系数 */
   var LAMBDA = -Math.log(DECAY) * 60;   /* 连续时间阻尼系数 ≈ 6.32 /s */
 
   var current = null;      /* 正在跑的循环，便于中途 stop() */
 
-  function makeParticle(x, y, angle) {
-    var radAngle = angle * Math.PI / 180;
+  function makeParticle(x, y) {
+    var radAngle = ANGLE * Math.PI / 180;
     var radSpread = SPREAD * Math.PI / 180;
     return {
       x: x,
@@ -61,6 +70,8 @@
       velocity: (START_VELOCITY * 0.5) + (Math.random() * START_VELOCITY),
       tick: 0,
       totalTicks: TICKS,
+      /* 原版 shapes: ['square','circle'] 等概率取一种 */
+      shape: Math.random() < 0.5 ? 'square' : 'circle',
       /* 纸条摆动的相位与角速度 */
       wobble: Math.random() * 10,
       wobbleSpeed: Math.min(0.11, Math.random() * 0.1 + 0.05),
@@ -104,11 +115,19 @@
     ctx.globalAlpha = 1 - progress;
     ctx.fillStyle = p.color;
     ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-    ctx.lineTo(p.wobbleX, y1);
-    ctx.lineTo(x2, y2);
-    ctx.lineTo(x1, p.wobbleY);
-    ctx.closePath();
+    if (p.shape === 'circle') {
+      /* 原版圆形分支：椭圆半径 = 两角距离 * 0.6，旋转 π/10*wobble */
+      ctx.ellipse(p.x, p.y,
+        Math.abs(x2 - x1) * OVAL,
+        Math.abs(y2 - y1) * OVAL,
+        Math.PI / 10 * p.wobble, 0, 2 * Math.PI);
+    } else {
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.wobbleX, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x1, p.wobbleY);
+      ctx.closePath();
+    }
     ctx.fill();
     return true;
   }
@@ -143,13 +162,11 @@
     if (!ctx) { canvas.hidden = true; return false; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    var per = (opts && opts.particles) || 100;
-    var y = (fireY == null) ? h : fireY;
+    var per = (opts && opts.particles) || PARTICLE_COUNT;
+    var y = (fireY == null) ? h * 0.6 : fireY;
     var parts = [];
-    for (var i = 0; i < per; i++) {
-      parts.push(makeParticle(-4, y, 60));      /* 左炮：向右上 */
-      parts.push(makeParticle(w + 4, y, 120));  /* 右炮：向左上 */
-    }
+    /* Basic Cannon：单炮、炮口在水平中央 */
+    for (var i = 0; i < per; i++) parts.push(makeParticle(w / 2, y));
 
     var stopped = false;
     var raf = 0;
