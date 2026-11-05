@@ -26,6 +26,7 @@
      y += sin(angle2D) * velocity + gravity(=3)
      velocity *= decay(0.9)
      alpha = 1 - tick/totalTicks                          // 全程线性淡出
+                                                            // 寿命取原版 200 帧的 2/3
 
    性能取舍：
    1. 粒子数固定 100（原版该效果就是 100），不随面积放大
@@ -48,7 +49,8 @@
   var START_VELOCITY = 45;   /* px/帧；实际取 0.5 ~ 1.5 倍 */
   var DECAY = 0.9;           /* 每帧速度乘 0.9 */
   var GRAVITY = 3;           /* 每帧额外 +3px（源码里 gravity:1 内部乘 3） */
-  var TICKS = 200;           /* 寿命 200 帧 ≈ 3.3 秒 */
+  /* 寿命：原版 200 帧（≈3.3s），这里按需求缩短到 2/3 ≈ 2.2s */
+  var TICKS = 133;
   var SCALAR = 1;            /* 尺寸系数，纸条长度 = 10 * scalar */
   var SPREAD = 70;           /* Basic Cannon 的 spread */
   var ANGLE = 90;            /* 默认 angle：垂直向上 */
