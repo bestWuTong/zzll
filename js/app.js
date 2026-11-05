@@ -135,8 +135,13 @@
     { scale: 0.94, label: '较小' },
     { scale: 1.00, label: '标准' },
     { scale: 1.09, label: '较大' },
-    { scale: 1.18, label: '大' }
+    { scale: 1.18, label: '大' },
+    { scale: 1.30, label: '特大' },
+    { scale: 1.44, label: '超大' }
   ];
+  /* 默认档 = 「标准」。只在此处定义，Store 的兜底值由调用方传进去，
+     避免两处各写一个数字、日后改档位时漏改 */
+  var STEM_DEFAULT = 2;
 
   function applyStemSize(index, save) {
     var max = STEM_STEPS.length - 1;
@@ -146,6 +151,8 @@
     if ($('setStemValue')) $('setStemValue').textContent = STEM_STEPS[i].label;
     if ($('btnStemMinus')) $('btnStemMinus').disabled = (i === 0);
     if ($('btnStemPlus')) $('btnStemPlus').disabled = (i === max);
+    /* 已经是默认档时「默认」按钮没有意义，置灰 */
+    if ($('btnStemReset')) $('btnStemReset').disabled = (i === STEM_DEFAULT);
     if (save) Store.StemSize.set(i);
   }
 
@@ -1596,6 +1603,9 @@
     $('btnStemPlus').addEventListener('click', function () {
       applyStemSize(state.stemStep + 1, true);
     });
+    $('btnStemReset').addEventListener('click', function () {
+      applyStemSize(STEM_DEFAULT, true);
+    });
     $('btnFullscreen').addEventListener('click', toggleFullscreen);
     document.addEventListener('fullscreenchange', updateFullscreenBtn);
     document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
@@ -1931,7 +1941,7 @@
     /* 章节模式：读缓存（默认刷题），首屏不加滑动动画 */
     applySectionMode(Store.SectionMode.get(), false);
     /* 题干字号：读缓存（默认标准档） */
-    applyStemSize(Store.StemSize.get(STEM_STEPS.length - 1), false);
+    applyStemSize(Store.StemSize.get(STEM_STEPS.length - 1, STEM_DEFAULT), false);
     updateFullscreenBtn();
     renderThemeBtn();
     syncThemeColor();

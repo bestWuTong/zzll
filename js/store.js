@@ -544,9 +544,11 @@
   var StemSize = {
     key: STEM_SIZE_KEY,
 
-    get: function (max) {
+    /* max：档位上限；def：没存过时的默认档（由调用方给，避免这里硬编码档位序号） */
+    get: function (max, def) {
+      var d = (def == null) ? 0 : def;
       var v = parseInt(storageGet(STEM_SIZE_KEY), 10);
-      if (isNaN(v)) return Math.min(2, max == null ? 2 : max);   /* 默认「标准」档 */
+      if (isNaN(v)) return (max == null) ? d : Math.min(d, max);
       if (max != null) v = Math.min(v, max);
       return Math.max(0, v);
     },
