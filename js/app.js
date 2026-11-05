@@ -1011,20 +1011,21 @@
     if (!window.ZZLLConfetti) return;
     var wrap = document.querySelector('#view-result .result-wrap');
     var canvas = $('confetti');
-    var ring = wrap && wrap.querySelector('.result-ring');
     var hint = $('resultHint');
-    if (!wrap || !canvas || !ring || !hint) return;
+    if (!wrap || !canvas || !hint) return;
 
-    var top = ring.offsetTop - 10;                         /* 圆环上方留一点余量 */
-    var fireDocY = hint.offsetTop + hint.offsetHeight;     /* 炮口落在提示文字下沿 */
-    var bottom = fireDocY + 90;                            /* 再往下留出下落空间 */
+    /* 画布覆盖整个结果区（顶部再往上延伸一点，避免礼炮顶点被裁）。
+       原版是把整个视口当画布、炮口在 origin.y≈0.6 处，这里同理：
+       炮口放在提示文字下沿，纸屑有足够空间升起再落下淡出。 */
+    var top = -24;
+    var height = wrap.offsetHeight + 24;
 
     canvas.style.left = '0px';
     canvas.style.top = top + 'px';
     canvas.style.width = wrap.clientWidth + 'px';
-    canvas.style.height = (bottom - top) + 'px';
+    canvas.style.height = height + 'px';
 
-    window.ZZLLConfetti.fire(canvas, fireDocY - top);
+    window.ZZLLConfetti.fire(canvas, hint.offsetTop + hint.offsetHeight - top);
   }
 
   function finishSession() {

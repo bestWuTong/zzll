@@ -1,54 +1,116 @@
 /* ==========================================================================
    彩带引擎 —— 复刻 canvas-confetti 的「Basic Cannon」
    --------------------------------------------------------------------------
-   左侧、右侧各放一发礼炮，朝屏幕内侧上方斜射（60° / 120°，扩散 55°），
-   粒子受重力下坠、受空气阻力减速、边飞边自转。
+   两侧各一发礼炮，朝屏幕内侧上方斜射。粒子形态与物理**照抄原版**：
+   不是"旋转的实心方块"，而是会被裁成细纸条、边飞边翻面的四边形。
 
-   自实现、零依赖。性能优先的几处取舍：
-   1. 粒子数固定（默认每侧 70，合计 140），不随画布面积放大
-   2. 设备像素比上限 2 —— 3x 屏上按 3 倍绘制纯属浪费，视觉几乎无差别
-   3. 全程只有一条 rAF 循环；粒子全部消失后立即停循环并把画布隐藏
-   4. 绘制用 setTransform + fillRect，不用 save/restore
-   5. dt 上限 32ms —— 从后台标签页切回来时不会让粒子瞬移出屏
-   6. 尊重 prefers-reduced-motion：直接不放
+     wobbleX = x + 10*cos(wobble)      ← 纸条的另一端
+     wobbleY = y + 10*sin(wobble)
+     x1 = x + random*tiltCos           ← random ∈ [2,3)，决定纸条厚度
+     y1 = y + random*tiltSin
+     四边形：(x,y) → (wobbleX, y1) → (x2, y2) → (x1, wobbleY)
+
+   tiltAngle 每帧 +0.1，tiltSin/Cos 缓慢变化 —— 纸条就在"完全展开"和
+   "被压成一条线"之间反复翻转，这是原版纸屑感的来源。
+
+   物理（单位「每帧」，60fps，与原版一致）：
+     velocity = startVelocity*0.5 + rand*startVelocity    // 45 → [22.5, 67.5)
+     angle2D  = -angle + (0.5*spread - rand*spread)       // 角度取负，y 轴向下
+     x += cos(angle2D) * velocity
+     y += sin(angle2D) * velocity + gravity(=3)
+     velocity *= decay(0.9)
+     alpha = 1 - tick/totalTicks                          // 全程线性淡出
+
+   性能取舍：
+   1. 粒子数固定（每侧 100，与原版示例 particleCount 同量级），不随面积放大
+   2. 设备像素比上限 2 —— 3x 屏按 2x 绘制，视觉几乎无差别
+   3. 单条 rAF 循环；按真实时间换算成「帧」推进物理，120Hz 屏不会翻倍加速
+   4. 每帧只算一次衰减系数（所有粒子共用），避免逐粒子 Math.pow
+   5. 粒子全部消失后立即停循环并隐藏画布
+   6. dt 上限 50ms —— 从后台标签页切回来不会瞬移
+   7. 尊重 prefers-reduced-motion：直接不放
    ========================================================================== */
 
 (function (global) {
   'use strict';
 
-  /* 取站点配色（蓝 / 绿 / 橙 / 红 / 紫），深浅色主题下都够醒目 */
+  /* 站点配色（蓝 / 绿 / 橙 / 红 / 紫） */
   var COLORS = ['#0071e3', '#34c759', '#ff9f0a', '#ff375f', '#5e5ce6'];
 
-  var GRAVITY = 1500;      /* px/s² */
-  var DRAG = 1.15;         /* 指数阻尼系数，越大减速越快 */
-  var SPEED_MIN = 760;
-  var SPEED_MAX = 1250;
-  var SPREAD = 27.5;       /* 半角，对应 canvas-confetti 的 spread: 55 */
-  var LIFE = 2.5;          /* 秒（每颗粒子再加 ±随机抖动） */
-  var FADE_FROM = 0.72;    /* 生命周期过了这个比例开始淡出 */
+  /* ---- 与原版默认值对齐（均为「每帧」，按 60fps 计） ---- */
+  var START_VELOCITY = 45;   /* px/帧；实际取 0.5 ~ 1.5 倍 */
+  var DECAY = 0.9;           /* 每帧速度乘 0.9 */
+  var GRAVITY = 3;           /* 每帧额外 +3px（源码里 gravity:1 内部乘 3） */
+  var TICKS = 200;           /* 寿命 200 帧 ≈ 3.3 秒 */
+  var SCALAR = 1;            /* 尺寸系数，纸条长度 = 10 * scalar */
+  var SPREAD = 60;           /* 扩散角，两侧各 ±30° */
+
+  var SIZE = 10 * SCALAR;
+  var LAMBDA = -Math.log(DECAY) * 60;   /* 连续时间阻尼系数 ≈ 6.32 /s */
 
   var current = null;      /* 正在跑的循环，便于中途 stop() */
 
-  function rand(a, b) { return a + Math.random() * (b - a); }
+  function makeParticle(x, y, angle) {
+    var radAngle = angle * Math.PI / 180;
+    var radSpread = SPREAD * Math.PI / 180;
+    return {
+      x: x,
+      y: y,
+      /* 原版：angle2D = -radAngle + (0.5*radSpread - rand*radSpread) */
+      angle2D: -radAngle + (0.5 * radSpread - Math.random() * radSpread),
+      velocity: (START_VELOCITY * 0.5) + (Math.random() * START_VELOCITY),
+      tick: 0,
+      totalTicks: TICKS,
+      /* 纸条摆动的相位与角速度 */
+      wobble: Math.random() * 10,
+      wobbleSpeed: Math.min(0.11, Math.random() * 0.1 + 0.05),
+      /* 翻面角度：初始 [0.25π, 0.75π)，每帧 +0.1 */
+      tiltAngle: (Math.random() * 0.5 + 0.25) * Math.PI,
+      tiltSin: 0,
+      tiltCos: 0,
+      random: Math.random() + 2,
+      wobbleX: x,
+      wobbleY: y,
+      color: COLORS[(Math.random() * COLORS.length) | 0]
+    };
+  }
 
-  function spawn(list, ox, oy, angle, count) {
-    for (var i = 0; i < count; i++) {
-      var rad = (angle + rand(-SPREAD, SPREAD)) * Math.PI / 180;
-      var v = rand(SPEED_MIN, SPEED_MAX);
-      list.push({
-        x: ox,
-        y: oy,
-        vx: Math.cos(rad) * v,
-        vy: -Math.sin(rad) * v,      /* 屏幕坐标 y 向下，所以取负 */
-        w: rand(7, 12),
-        h: rand(5, 8),
-        rot: rand(0, Math.PI * 2),
-        vrot: rand(-9, 9),           /* rad/s */
-        color: COLORS[(Math.random() * COLORS.length) | 0],
-        age: 0,
-        life: LIFE * rand(0.85, 1.12)
-      });
-    }
+  function update(p, k, decay) {
+    p.x += Math.cos(p.angle2D) * p.velocity * k;
+    p.y += Math.sin(p.angle2D) * p.velocity * k + GRAVITY * k;
+    p.velocity *= decay;
+    p.tick += k;
+
+    p.wobble += p.wobbleSpeed * k;
+    p.wobbleX = p.x + SIZE * Math.cos(p.wobble);
+    p.wobbleY = p.y + SIZE * Math.sin(p.wobble);
+
+    p.tiltAngle += 0.1 * k;
+    p.tiltSin = Math.sin(p.tiltAngle);
+    p.tiltCos = Math.cos(p.tiltAngle);
+    p.random = Math.random() + 2;
+  }
+
+  function draw(ctx, p) {
+    var progress = p.tick / p.totalTicks;
+    if (progress >= 1) return false;
+
+    /* 右下角与左上角各偏开 random*(tiltCos, tiltSin)，形成纸条厚度 */
+    var x1 = p.x + p.random * p.tiltCos;
+    var y1 = p.y + p.random * p.tiltSin;
+    var x2 = p.wobbleX + p.random * p.tiltCos;
+    var y2 = p.wobbleY + p.random * p.tiltSin;
+
+    ctx.globalAlpha = 1 - progress;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.wobbleX, y1);
+    ctx.lineTo(x2, y2);
+    ctx.lineTo(x1, p.wobbleY);
+    ctx.closePath();
+    ctx.fill();
+    return true;
   }
 
   /**
@@ -79,59 +141,45 @@
 
     var ctx = canvas.getContext('2d');
     if (!ctx) { canvas.hidden = true; return false; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    var count = (opts && opts.particles) || 70;
+    var per = (opts && opts.particles) || 100;
     var y = (fireY == null) ? h : fireY;
     var parts = [];
-    spawn(parts, -6, y, 60, count);        /* 左炮：向右上 */
-    spawn(parts, w + 6, y, 120, count);    /* 右炮：向左上 */
+    for (var i = 0; i < per; i++) {
+      parts.push(makeParticle(-4, y, 60));      /* 左炮：向右上 */
+      parts.push(makeParticle(w + 4, y, 120));  /* 右炮：向左上 */
+    }
 
-    var base = dpr;
-    var last = 0;
-    var raf = 0;
     var stopped = false;
+    var raf = 0;
+    var last = 0;
 
-    function paint(now) {
+    function frame(now) {
       if (stopped) return;
-      var dt = last ? Math.min((now - last) / 1000, 0.032) : 0.016;
+      var dt = last ? Math.min((now - last) / 1000, 0.05) : 1 / 60;
       last = now;
 
-      ctx.setTransform(base, 0, 0, base, 0, 0);
+      /* 把真实时间换算成「帧数」，物理仍按原版的每帧步长推进 */
+      var k = dt * 60;
+      var decay = Math.exp(-LAMBDA * dt);
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
 
       var alive = 0;
-      for (var i = 0; i < parts.length; i++) {
-        var p = parts[i];
-        if (p.age >= p.life) continue;
-
-        p.age += dt;
-        if (p.age >= p.life) continue;
-
-        var decay = Math.exp(-DRAG * dt);
-        p.vx *= decay;
-        p.vy = p.vy * decay + GRAVITY * dt;
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.rot += p.vrot * dt;
-
-        /* 飞出画布太多就直接判死，省掉后续绘制 */
-        if (p.x < -80 || p.x > w + 80 || p.y > h + 80) { p.age = p.life; continue; }
-
-        alive++;
-        var t = p.age / p.life;
-        ctx.globalAlpha = t < FADE_FROM ? 1 : 1 - (t - FADE_FROM) / (1 - FADE_FROM);
-        ctx.fillStyle = p.color;
-        var c = Math.cos(p.rot) * base;
-        var s = Math.sin(p.rot) * base;
-        ctx.setTransform(c, s, -s, c, p.x * base, p.y * base);
-        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      for (var j = 0; j < parts.length; j++) {
+        var p = parts[j];
+        if (p.tick >= p.totalTicks) continue;
+        update(p, k, decay);
+        /* 明显飞出画布就不画了（画布边缘本身也会裁切，这里只是省算力） */
+        if (p.x < -120 || p.x > w + 120 || p.y > h + 120) { p.tick = p.totalTicks; continue; }
+        if (draw(ctx, p)) alive++;
       }
+      ctx.globalAlpha = 1;
 
-      if (!alive) {
-        finish();
-        return;
-      }
-      raf = global.requestAnimationFrame(paint);
+      if (!alive) { finish(); return; }
+      raf = global.requestAnimationFrame(frame);
     }
 
     function finish() {
@@ -139,13 +187,13 @@
       current = null;
       if (raf) global.cancelAnimationFrame(raf);
       raf = 0;
-      ctx.setTransform(base, 0, 0, base, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
       canvas.hidden = true;
     }
 
     current = { finish: finish };
-    raf = global.requestAnimationFrame(paint);
+    raf = global.requestAnimationFrame(frame);
     return true;
   }
 
