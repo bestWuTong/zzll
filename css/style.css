@@ -702,7 +702,9 @@ svg { display: block; }
 
 .q-stem {
   margin: 0;
-  font-size: 19px;
+  /* 可调字号：只有题干受影响（设置里的 A− / A+），
+     用乘法而不是写死 px，移动端的基础字号仍然生效 */
+  font-size: calc(19px * var(--stem-scale, 1));
   line-height: 1.62;
   font-weight: 500;
   letter-spacing: -0.01em;
@@ -811,6 +813,19 @@ svg { display: block; }
 
 /* ------------------------------------------------------------------ 底部导航 */
 .quiz-nav { display: flex; gap: 12px; }
+
+/* 刷题页底部居中的「设置」入口（样式低调，不抢题目的注意力） */
+.quiz-foot { display: flex; justify-content: center; margin-top: 12px; }
+.quiz-set-btn {
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  border-radius: 980px;
+  transition: color 0.18s, background 0.18s, transform 0.18s;
+}
+.quiz-set-btn:hover { color: var(--text); background: var(--line); }
+.quiz-set-btn:active { transform: scale(0.96); }
 
 .btn {
   flex: 1;
@@ -1231,6 +1246,53 @@ html[data-theme="dark"] .rc-arrow { color: #6cb6ff; }
   padding: 0;
 }
 
+/* ------------------------------------------------------ 设置弹窗的行 */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.set-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+.set-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.set-value { font-size: 12.5px; font-style: normal; font-weight: 500; color: var(--text-3); }
+.set-btns { display: inline-flex; gap: 8px; flex: none; }
+.set-round {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text);
+  /* 用 --bg 而不是 --card：弹窗卡片本身就是 --card，
+     同色会让圆形按钮在暗色下几乎看不见（.modal-opt 也是这个做法） */
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  transition: color 0.18s, border-color 0.18s, background 0.18s, transform 0.18s;
+}
+.set-round:hover { color: var(--accent); border-color: var(--line-strong); }
+.set-round:active { transform: scale(0.92); }
+.set-round:disabled { opacity: 0.35; cursor: not-allowed; color: var(--text-3); }
+.set-round:disabled:hover { border-color: var(--line); }
+/* 弹窗里的主题按钮也用 --bg，和字号按钮视觉一致
+   （首页那个仍是 --card，因为它的底是页面背景） */
+.modal-set .theme-btn { background: var(--bg); }
+
+/* 全屏按钮比默认的 btn 更紧凑，塞得进一行 */
+.btn.set-full { flex: none; padding: 9px 16px; font-size: 14px; }
+
 .sync-scroll {
   max-height: 86vh;
   overflow-y: auto;
@@ -1496,7 +1558,7 @@ body.is-quiz .sync-bubble { bottom: 92px; }
   .quick-title { font-size: 16px; }
   .quick-desc { font-size: 12px; }
   .q-card { padding: 22px 18px 20px; border-radius: 16px; }
-  .q-stem { font-size: 17px; line-height: 1.62; }
+  .q-stem { font-size: calc(17px * var(--stem-scale, 1)); line-height: 1.62; }
   .opt { min-height: 58px; font-size: 16px; }
   .ring-rate { font-size: 36px; }
   .result-ring { width: 152px; height: 152px; }
@@ -1525,6 +1587,7 @@ body.is-quiz .sync-bubble { bottom: 92px; }
   #view-quiz .feedback { order: 2; }
   #view-quiz .options { order: 3; margin-top: auto; }
   #view-quiz .quiz-nav { order: 4; }
+  #view-quiz .quiz-foot { order: 5; margin-top: 10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

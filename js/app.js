@@ -21,6 +21,7 @@
     store: null,       /* 当前题库的 { Wrong, Progress } */
     session: null,
     sectionMode: 'practice',   /* 章节模式：practice 刷题 / read 阅读 */
+    stemStep: 2,               /* 题干字号档位，默认第 3 档（标准） */
     toastTimer: null,
     booting: true,             /* 启动阶段：同步结果先暂存，进页面后再提示 */
     bootSyncEvent: null,
@@ -114,13 +115,82 @@
   }
 
   function renderThemeBtn() {
-    var btn = $('themeBtn');
-    if (!btn) return;
     var dark = currentTheme() === 'dark';
     var label = dark ? '切换到浅色模式' : '切换到暗色模式';
-    btn.innerHTML = dark ? ICON_SUN : ICON_MOON;
-    btn.setAttribute('aria-label', label);
-    btn.setAttribute('title', label);
+    var svg = dark ? ICON_SUN : ICON_MOON;
+    /* 首页右上角 + 刷题设置弹窗里各一个，状态与图标必须一致 */
+    ['themeBtn', 'themeBtnQuiz'].forEach(function (id) {
+      var btn = $(id);
+      if (!btn) return;
+      btn.innerHTML = svg;
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
+    });
+  }
+
+  /* ------------------------------------------------ 题干字号（只影响题干）
+     存档位索引；--stem-scale 只作用在 .q-stem 上，题目之外的排版不受影响。 */
+  var STEM_STEPS = [
+    { scale: 0.88, label: '小' },
+    { scale: 0.94, label: '较小' },
+    { scale: 1.00, label: '标准' },
+    { scale: 1.09, label: '较大' },
+    { scale: 1.18, label: '大' }
+  ];
+
+  function applyStemSize(index, save) {
+    var max = STEM_STEPS.length - 1;
+    var i = Math.max(0, Math.min(max, index));
+    state.stemStep = i;
+    document.documentElement.style.setProperty('--stem-scale', STEM_STEPS[i].scale);
+    if ($('setStemValue')) $('setStemValue').textContent = STEM_STEPS[i].label;
+    if ($('btnStemMinus')) $('btnStemMinus').disabled = (i === 0);
+    if ($('btnStemPlus')) $('btnStemPlus').disabled = (i === max);
+    if (save) Store.StemSize.set(i);
+  }
+
+  /* ------------------------------------------------------------ 全屏
+     状态不落盘：每次打开页面都是非全屏（浏览器本身也是如此）。 */
+  function fullscreenEl() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function updateFullscreenBtn() {
+    var btn = $('btnFullscreen');
+    if (btn) btn.textContent = fullscreenEl() ? '退出全屏' : '进入全屏';
+  }
+
+  function toggleFullscreen() {
+    var doc = document;
+    if (fullscreenEl()) {
+      var exit = doc.exitFullscreen || doc.webkitExitFullscreen;
+      if (exit) {
+        try {
+          var p = exit.call(doc);
+          if (p && p.catch) p.catch(function () {});
+        } catch (e) {}
+      }
+      return;
+    }
+    var el = doc.documentElement;
+    var req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!req) {
+      /* iOS Safari 不支持给普通元素开全屏，只能引导用户换方式 */
+      toast('当前浏览器不支持全屏，iOS 可在分享菜单里「添加到主屏幕」');
+      return;
+    }
+    try {
+      var r = req.call(el);
+      if (r && r.catch) r.catch(function () { toast('进入全屏失败'); });
+    } catch (e) {
+      toast('进入全屏失败');
+    }
+  }
+
+  /** 有任何弹窗/确认框开着（刷题快捷键要避让） */
+  function isModalOpen() {
+    if (window.ZZLLDialog && window.ZZLLDialog.isOpen()) return true;
+    return !!document.querySelector('.modal:not([hidden])');
   }
 
   /** 同步浏览器地址栏配色，直接取计算后的 --bg，避免和 CSS 两处维护 */
@@ -1508,6 +1578,27 @@
     });
     $('btnNext').addEventListener('click', goNext);
     $('btnPrev').addEventListener('click', goPrev);
+
+    /* 刷题设置弹窗：暗色模式 / 题干字号 / 全屏 */
+    $('btnQuizSettings').addEventListener('click', function () {
+      applyStemSize(state.stemStep, false);   /* 打开时按当前值刷新按钮状态 */
+      updateFullscreenBtn();
+      $('quizSetModal').hidden = false;
+    });
+    $('quizSetModal').addEventListener('click', function (e) {
+      var closer = e.target.closest ? e.target.closest('[data-close]') : null;
+      if (closer) $('quizSetModal').hidden = true;
+    });
+    $('themeBtnQuiz').addEventListener('click', toggleTheme);
+    $('btnStemMinus').addEventListener('click', function () {
+      applyStemSize(state.stemStep - 1, true);
+    });
+    $('btnStemPlus').addEventListener('click', function () {
+      applyStemSize(state.stemStep + 1, true);
+    });
+    $('btnFullscreen').addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', updateFullscreenBtn);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
     $('quizBack').addEventListener('click', function () {
       var s = state.session;
       function leave() {
@@ -1733,10 +1824,15 @@
 
     /* 键盘快捷键：← → 翻题，1 / 2 作答，Esc 关下拉 */
     document.addEventListener('keydown', function (e) {
-      /* 通用对话框打开时，底下的刷题快捷键一律不响应
-         （原生 confirm 会吞掉键盘事件，换成站内对话框后必须自己挡） */
+      /* 确认框打开时连 Esc 都归它管，这里直接退出 */
       if (window.ZZLLDialog && window.ZZLLDialog.isOpen()) return;
-      if (e.key === 'Escape' && isBankMenuOpen()) { setBankMenuOpen(false); return; }
+      if (e.key === 'Escape') {
+        if (!$('quizSetModal').hidden) { $('quizSetModal').hidden = true; return; }
+        if (isBankMenuOpen()) { setBankMenuOpen(false); return; }
+      }
+      /* 任何弹窗开着时，底下的刷题快捷键一律不响应
+         （原生 confirm 会吞掉键盘事件，站点自己画的弹窗不会，必须自己挡） */
+      if (isModalOpen()) return;
       if (!$('view-quiz').classList.contains('is-active')) return;
       if (e.key === 'ArrowRight' || e.key === 'Enter') { goNext(); }
       else if (e.key === 'ArrowLeft') { goPrev(); }
@@ -1834,6 +1930,9 @@
     Store.Banks.migrateLegacy();
     /* 章节模式：读缓存（默认刷题），首屏不加滑动动画 */
     applySectionMode(Store.SectionMode.get(), false);
+    /* 题干字号：读缓存（默认标准档） */
+    applyStemSize(Store.StemSize.get(STEM_STEPS.length - 1), false);
+    updateFullscreenBtn();
     renderThemeBtn();
     syncThemeColor();
     watchSystemTheme();

@@ -536,10 +536,31 @@
     }
   };
 
+  /* ------------------------------------------------ 题干字号（全局偏好）
+     只存档位索引（0 起）；每档的缩放比例与文案在 app.js 里（纯展示逻辑）。
+     与 SectionMode / ShufflePriority 一样只在本机，不进同步快照。 */
+  var STEM_SIZE_KEY = 'zzll.stemsize.v1';
+
+  var StemSize = {
+    key: STEM_SIZE_KEY,
+
+    get: function (max) {
+      var v = parseInt(storageGet(STEM_SIZE_KEY), 10);
+      if (isNaN(v)) return Math.min(2, max == null ? 2 : max);   /* 默认「标准」档 */
+      if (max != null) v = Math.min(v, max);
+      return Math.max(0, v);
+    },
+
+    set: function (index) {
+      storageSet(STEM_SIZE_KEY, String(index));
+    }
+  };
+
   global.ZZLLStore = {
     forBank: createBankStore,
     Banks: Banks,
     SectionMode: SectionMode,
+    StemSize: StemSize,
     ShufflePriority: ShufflePriority,
     /* 同步层用：本地数据最后修改时间（毫秒） */
     dataUpdatedAt: function () {
