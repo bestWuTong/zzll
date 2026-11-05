@@ -69,6 +69,8 @@
     });
     /* 刷题页在移动端要把按钮沉到屏幕底部，需要收紧 .app 的底部内边距 */
     document.body.classList.toggle('is-quiz', name === 'quiz');
+    /* 离开结果页就掐掉彩带（避免在看不见的地方空跑） */
+    if (name !== 'result' && window.ZZLLConfetti) window.ZZLLConfetti.stop();
     /* 首页重新可见后重新贴合模式开关的滑块。
        从阅读/结果页返回时，视图刚从 display:none 变回可见，
        必须等一帧再量宽度（否则量到 0）。 */
@@ -1000,6 +1002,31 @@
     actions.innerHTML = html;
   }
 
+  /* ------------------------------------------------- 100% 正确率的彩带 */
+  /**
+   * 把彩带画布贴到「正确率圆环 → 提示文字」这一块上，从左右下角各放一发礼炮。
+   * 只在正确率 100% 时调用（效果见 js/confetti.js）。
+   */
+  function celebrate() {
+    if (!window.ZZLLConfetti) return;
+    var wrap = document.querySelector('#view-result .result-wrap');
+    var canvas = $('confetti');
+    var ring = wrap && wrap.querySelector('.result-ring');
+    var hint = $('resultHint');
+    if (!wrap || !canvas || !ring || !hint) return;
+
+    var top = ring.offsetTop - 10;                         /* 圆环上方留一点余量 */
+    var fireDocY = hint.offsetTop + hint.offsetHeight;     /* 炮口落在提示文字下沿 */
+    var bottom = fireDocY + 90;                            /* 再往下留出下落空间 */
+
+    canvas.style.left = '0px';
+    canvas.style.top = top + 'px';
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = (bottom - top) + 'px';
+
+    window.ZZLLConfetti.fire(canvas, fireDocY - top);
+  }
+
   function finishSession() {
     var s = state.session;
     /* 兜底：正常路径在「答完最后一题」时就已落库，这里防重复 */
@@ -1044,6 +1071,8 @@
     setTimeout(function () {
       ring.style.strokeDashoffset = (RING_CIRC * (1 - rate)).toFixed(1);
     }, 60);
+    /* 满分才放彩带；延后一点，等圆环画完再炸 */
+    if (total > 0 && rate === 1) setTimeout(celebrate, 260);
   }
 
   /* ------------------------------------------------------------- 错题集页面 */

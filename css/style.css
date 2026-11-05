@@ -842,7 +842,19 @@ svg { display: block; }
 .btn-danger-soft { background: var(--red-soft); color: var(--red); }
 
 /* -------------------------------------------------------------------- 结果 */
-.result-wrap { padding: 12px 0; text-align: center; }
+.result-wrap { position: relative; padding: 12px 0; text-align: center; }
+
+/* 100% 正确率的彩带画布：覆盖圆环到提示文字那一块，尺寸/位置由 JS 实测设置。
+   pointer-events: none 保证不挡住下面的按钮。 */
+.confetti {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  pointer-events: none;
+  display: block;
+}
+.confetti[hidden] { display: none; }
 
 .result-ring {
   position: relative;

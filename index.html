@@ -232,6 +232,8 @@
   <!-- ==================== 结果 ==================== -->
   <main id="view-result" class="view">
     <div class="result-wrap">
+      <!-- 100% 正确率时在这里放彩带（绝对定位覆盖圆环到提示文字这一块） -->
+      <canvas class="confetti" id="confetti" aria-hidden="true" hidden></canvas>
       <div class="result-ring">
         <svg viewBox="0 0 120 120">
           <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
@@ -407,6 +409,7 @@
 <script src="data/xiaohei.js"></script>
 <script src="js/store.js"></script>
 <script src="js/sync.js"></script>
+<script src="js/confetti.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
