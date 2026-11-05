@@ -160,7 +160,10 @@ svg { display: block; }
   gap: 10px;
 }
 
-.theme-btn {
+/* 圆形图标按钮：主题切换、数据同步、全屏 —— 三者外观完全一致。
+   注意别叫 .icon-btn —— 那是顶栏返回按钮（蓝色）已经在用的类名。 */
+.theme-btn,
+.tool-btn {
   flex: none;
   width: 36px;
   height: 36px;
@@ -174,9 +177,12 @@ svg { display: block; }
   box-shadow: var(--shadow-1);
   transition: color 0.18s, border-color 0.18s, background 0.18s, transform 0.18s;
 }
-.theme-btn svg { width: 18px; height: 18px; }
-.theme-btn:hover { color: var(--accent); border-color: var(--line-strong); }
-.theme-btn:active { transform: scale(0.92); }
+.theme-btn svg,
+.tool-btn svg { width: 18px; height: 18px; }
+.theme-btn:hover,
+.tool-btn:hover { color: var(--accent); border-color: var(--line-strong); }
+.theme-btn:active,
+.tool-btn:active { transform: scale(0.92); }
 
 .hero-title {
   margin: 0;
@@ -217,13 +223,6 @@ svg { display: block; }
 /* display:flex 会盖掉 [hidden] 的 display:none，这里补回来 */
 .bank-switch[hidden] { display: none; }
 
-.bank-switch-hint {
-  font-size: 13px;
-  color: var(--text-3);
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  user-select: none;
-}
 
 .bank-btn {
   display: inline-flex;
@@ -1570,11 +1569,12 @@ body.is-quiz .sync-bubble { bottom: 92px; }
      向左展开时不越出屏幕左边界。PC 端（>560px）三者仍在同一行。 */
   .hero-top { flex-wrap: wrap; gap: 12px; }
   .hero-tools { order: 1; margin-left: auto; gap: 8px; }
-  .theme-btn { width: 32px; height: 32px; }
-  .theme-btn svg { width: 16px; height: 16px; }
+  .theme-btn,
+  .tool-btn { width: 32px; height: 32px; }
+  .theme-btn svg,
+  .tool-btn svg { width: 16px; height: 16px; }
   .bank-switch { gap: 6px; }
   .hero-heading { order: 2; flex: 1 1 100%; }
-  .bank-switch-hint { font-size: 12px; }
   .bank-btn { padding: 7px 10px 7px 12px; font-size: 13px; }
   .bank-btn-label { max-width: 72px; }
   .bank-menu { width: calc(100vw - 32px); }

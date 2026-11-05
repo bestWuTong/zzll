@@ -101,6 +101,16 @@
     '<path d="M12 2.6v2.3M12 19.1v2.3M4.5 4.5l1.6 1.6M17.9 17.9l1.6 1.6M2.6 12h2.3M19.1 12h2.3' +
     'M4.5 19.5l1.6-1.6M17.9 6.1l1.6-1.6"></path></svg>';
 
+  /* 全屏图标：四角向外 = 可进入全屏；四角内收 = 当前已全屏，点了退出 */
+  var ICON_FS_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path>' +
+    '<path d="M16 3h3a2 2 0 0 1 2 2v3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>' +
+    '<path d="M8 21H5a2 2 0 0 1-2-2v-3"></path></svg>';
+  var ICON_FS_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3"></path>' +
+    '<path d="M16 3v3a2 2 0 0 0 2 2h3"></path><path d="M16 21v-3a2 2 0 0 1 2-2h3"></path>' +
+    '<path d="M8 21v-3a2 2 0 0 0-2-2H3"></path></svg>';
+
   function savedTheme() {
     try {
       var v = window.localStorage.getItem(THEME_KEY);
@@ -163,8 +173,18 @@
   }
 
   function updateFullscreenBtn() {
+    var active = !!fullscreenEl();
+    /* 设置弹窗里是带文字的按钮 */
     var btn = $('btnFullscreen');
-    if (btn) btn.textContent = fullscreenEl() ? '退出全屏' : '进入全屏';
+    if (btn) btn.textContent = active ? '退出全屏' : '进入全屏';
+    /* 首页右上角是纯图标圆形按钮，只能靠图标 + aria-label 表达状态 */
+    var home = $('fsBtn');
+    if (home) {
+      var label = active ? '退出全屏' : '进入全屏';
+      home.innerHTML = active ? ICON_FS_OFF : ICON_FS_ON;
+      home.setAttribute('aria-label', label);
+      home.setAttribute('title', label);
+    }
   }
 
   function toggleFullscreen() {
@@ -1607,6 +1627,7 @@
       applyStemSize(STEM_DEFAULT, true);
     });
     $('btnFullscreen').addEventListener('click', toggleFullscreen);
+    $('fsBtn').addEventListener('click', toggleFullscreen);
     document.addEventListener('fullscreenchange', updateFullscreenBtn);
     document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
     $('quizBack').addEventListener('click', function () {
