@@ -1344,20 +1344,26 @@
     /* 清除练习记录：只清当前题库的「练习」数据（答对次数 + 章节进度/正确率），
        不碰错题集，也不碰题库选择与主题 */
     $('btnClearRecord').addEventListener('click', function () {
-      if (!state.store) return;
+      var store = state.store;
+      if (!store) return;
       var name = bankTitle();
-      var answered = bankProgress(state.store, state.bank).answered;
-      var counted = Object.keys(state.store.Stats.all()).length;
+      var answered = bankProgress(store, state.bank).answered;
+      var counted = Object.keys(store.Stats.all()).length;
       if (!answered && !counted) { toast('「' + name + '」还没有练习记录'); return; }
-      if (!window.confirm(
-        '清除「' + name + '」的练习记录？\n\n' +
-        '会清空：每题答对次数、各章节正确率与已练进度。\n' +
-        '错题集不受影响。此操作不可撤销。')) return;
-      state.store.Stats.reset();
-      state.store.Progress.reset();
-      renderHome();
-      toast('已清除「' + name + '」的练习记录');
-      requestSync(true);
+      window.ZZLLDialog.confirm({
+        title: '清除练习记录',
+        message: '将清空「' + name + '」的每题答对次数、各章节正确率与已练进度。\n' +
+          '错题集不受影响，此操作不可撤销。',
+        okText: '清除',
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        store.Stats.reset();
+        store.Progress.reset();
+        renderHome();
+        toast('已清除「' + name + '」的练习记录');
+        requestSync(true);
+      });
     });
 
     /* ---- 开发者选项：数据维护入口（后续调试功能都挂这里） ---- */
@@ -1456,27 +1462,38 @@
       var n = parseInt(opt.getAttribute('data-count'), 10);
       var priority = !!($('optPriority') && $('optPriority').checked);
 
-      /* 选了新的题量 = 开一轮新的序列：上次没刷完的进度要先清掉，提前问一声 */
-      if (state.resumeProgress) {
-        var ok = window.confirm('开始新的打乱刷题会清空上次未完成的进度（已完成 ' +
-          state.resumeProgress.rounds + ' 组），确定吗？');
-        if (!ok) return;          /* 取消就留在弹窗里，不动进度 */
-        state.store.Shuffle.clear();
-        state.resumeProgress = null;
+      /* 抽题并开跑。「要不要先清掉旧进度」要等用户确认，所以收成函数 */
+      function begin() {
+        modal.hidden = true;
+        var pool = allQuestions();
+        if (!pool.length) { toast('题库为空'); return; }
+        var picked = pickQuestions(pool, n, priority);
+        var used = new Set();
+        picked.forEach(function (q) { used.add(q.id); });
+        startSession({
+          mode: 'random',
+          title: '打乱刷题 · ' + picked.length + ' 题',
+          questions: picked,
+          shuffle: { size: n, used: used, priority: priority, rounds: 1 }
+        });
       }
 
-      modal.hidden = true;
-      var pool = allQuestions();
-      if (!pool.length) { toast('题库为空'); return; }
-      var picked = pickQuestions(pool, n, priority);
-      var used = new Set();
-      picked.forEach(function (q) { used.add(q.id); });
-      startSession({
-        mode: 'random',
-        title: '打乱刷题 · ' + picked.length + ' 题',
-        questions: picked,
-        shuffle: { size: n, used: used, priority: priority, rounds: 1 }
-      });
+      /* 选了新的题量 = 开一轮新的序列：上次没刷完的进度要先清掉，提前问一声 */
+      if (state.resumeProgress) {
+        window.ZZLLDialog.confirm({
+          title: '开始新的刷题？',
+          message: '上次还有未完成的进度（已完成 ' + state.resumeProgress.rounds +
+            ' 组），开始新的会把它清空。',
+          okText: '开始新的'
+        }).then(function (ok) {
+          if (!ok) return;        /* 取消就留在弹窗里，不动进度 */
+          state.store.Shuffle.clear();
+          state.resumeProgress = null;
+          begin();
+        });
+        return;
+      }
+      begin();
     });
 
     /* 刷题页 */
@@ -1493,16 +1510,25 @@
     $('btnPrev').addEventListener('click', goPrev);
     $('quizBack').addEventListener('click', function () {
       var s = state.session;
+      function leave() {
+        var backToWrong = !!(s && s.mode === 'wrong');
+        state.session = null;
+        if (backToWrong) { renderWrong(); showView('wrong'); }
+        else { renderHome(); showView('home'); }
+      }
       if (s) {
         var done = answeredCount(s);
         if (done > 0 && done < s.questions.length) {
-          if (!window.confirm('这一组还没答完，退出后本次作答不会保存。\n确定要退出吗？')) return;
+          window.ZZLLDialog.confirm({
+            title: '退出本次练习？',
+            message: '这一组还没答完，退出后本次作答不会保存。',
+            okText: '退出',
+            danger: true
+          }).then(function (ok) { if (ok) leave(); });
+          return;
         }
       }
-      var backToWrong = !!(s && s.mode === 'wrong');
-      state.session = null;
-      if (backToWrong) { renderWrong(); showView('wrong'); }
-      else { renderHome(); showView('home'); }
+      leave();
     });
 
     /* 结果页 */
@@ -1687,17 +1713,29 @@
     }
 
     $('btnWrongClear').addEventListener('click', function () {
-      if (!state.store.Wrong.count()) return;
-      if (!window.confirm('确定要清空「' + bankTitle() + '」错题集（' +
-        state.store.Wrong.count() + ' 题）吗？此操作不可撤销。')) return;
-      state.store.Wrong.clear();
-      renderWrong();
-      toast('「' + bankTitle() + '」错题集已清空');
-      requestSync(true);
+      var store = state.store;
+      var n = store.Wrong.count();
+      if (!n) return;
+      var name = bankTitle();
+      window.ZZLLDialog.confirm({
+        title: '清空错题集',
+        message: '将移除「' + name + '」错题集里的全部 ' + n + ' 题。此操作不可撤销。',
+        okText: '清空',
+        danger: true
+      }).then(function (ok) {
+        if (!ok) return;
+        store.Wrong.clear();
+        renderWrong();
+        toast('「' + name + '」错题集已清空');
+        requestSync(true);
+      });
     });
 
     /* 键盘快捷键：← → 翻题，1 / 2 作答，Esc 关下拉 */
     document.addEventListener('keydown', function (e) {
+      /* 通用对话框打开时，底下的刷题快捷键一律不响应
+         （原生 confirm 会吞掉键盘事件，换成站内对话框后必须自己挡） */
+      if (window.ZZLLDialog && window.ZZLLDialog.isOpen()) return;
       if (e.key === 'Escape' && isBankMenuOpen()) { setBankMenuOpen(false); return; }
       if (!$('view-quiz').classList.contains('is-active')) return;
       if (e.key === 'ArrowRight' || e.key === 'Enter') { goNext(); }

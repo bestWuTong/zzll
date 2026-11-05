@@ -1058,6 +1058,34 @@ svg { display: block; }
 .modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; }
 .modal[hidden] { display: none; }
 
+/* 通用对话框要能盖在别的弹窗之上（例如打乱刷题弹窗里再问一次） */
+.modal.modal-dialog-wrap { z-index: 300; }
+
+/* 用 .modal-card.modal-dialog 提高权重：这条规则写在 .modal-card 之前，
+   同权重的话它的 text-align: center 会盖掉这里的 left */
+.modal-card.modal-dialog {
+  width: min(360px, calc(100vw - 40px));
+  padding: 22px 20px 18px;
+  text-align: left;
+}
+.dlg-title { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.dlg-message {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.62;
+  color: var(--text-2);
+  /* 保留调用方传入的换行（原来的 confirm 文本里有 \n） */
+  white-space: pre-line;
+}
+.dlg-message[hidden] { display: none; }
+
+.dlg-actions { display: flex; gap: 10px; margin-top: 20px; }
+.dlg-actions .btn { flex: 1; min-width: 0; }
+.dlg-actions .btn[hidden] { display: none; }
+/* 危险操作：确定按钮标红 */
+.btn.is-danger { background: var(--red); color: #fff; }
+.btn.is-danger:hover { background: var(--red); filter: brightness(0.95); }
+
 .modal-mask {
   position: absolute; inset: 0;
   background: rgba(0, 0, 0, 0.32);

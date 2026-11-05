@@ -311,6 +311,20 @@
   </div>
 </div>
 
+<!-- ============ 通用对话框：替代浏览器原生 confirm / alert ============ -->
+<div class="modal modal-dialog-wrap" id="dialogModal" hidden>
+  <div class="modal-mask" data-dlg="cancel"></div>
+  <div class="modal-card modal-dialog" role="dialog" aria-modal="true"
+       aria-labelledby="dlgTitle" aria-describedby="dlgMessage">
+    <h3 class="dlg-title" id="dlgTitle">提示</h3>
+    <p class="dlg-message" id="dlgMessage"></p>
+    <div class="dlg-actions">
+      <button class="btn btn-ghost" type="button" id="dlgCancel" data-dlg="cancel">取消</button>
+      <button class="btn btn-primary" type="button" id="dlgOk" data-dlg="ok">确定</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 
 <!-- 同步状态气泡：固定在页面下方，不拦截点击，不打断刷题 -->
@@ -410,6 +424,7 @@
 <script src="js/store.js"></script>
 <script src="js/sync.js"></script>
 <script src="js/confetti.js"></script>
+<script src="js/dialog.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
