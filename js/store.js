@@ -536,6 +536,24 @@
     }
   };
 
+  /* ------------------------------------------ 答对自动下一题（全局偏好）
+     默认开启；关掉后答对也和答错一样，手动点「下一题」。
+     与主题 / 字号 / 打乱优先 一样只存本机，不进同步快照。 */
+  var AUTO_NEXT_KEY = 'zzll.autonext.v1';
+
+  var AutoNext = {
+    key: AUTO_NEXT_KEY,
+
+    get: function () {
+      var v = storageGet(AUTO_NEXT_KEY);
+      return v === null || v === undefined || v === '' ? true : v === '1';
+    },
+
+    set: function (on) {
+      storageSet(AUTO_NEXT_KEY, on ? '1' : '0');
+    }
+  };
+
   /* ------------------------------------------------ 题干字号（全局偏好）
      只存档位索引（0 起）；每档的缩放比例与文案在 app.js 里（纯展示逻辑）。
      与 SectionMode / ShufflePriority 一样只在本机，不进同步快照。 */
@@ -564,6 +582,7 @@
     SectionMode: SectionMode,
     StemSize: StemSize,
     ShufflePriority: ShufflePriority,
+    AutoNext: AutoNext,
     /* 同步层用：本地数据最后修改时间（毫秒） */
     dataUpdatedAt: function () {
       return Number(storageGet(DATA_UPDATED_KEY) || 0) || 0;

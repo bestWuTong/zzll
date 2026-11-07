@@ -22,6 +22,7 @@
     session: null,
     sectionMode: 'practice',   /* 章节模式：practice 刷题 / read 阅读 */
     stemStep: 2,               /* 题干字号档位，默认第 3 档（标准） */
+    autoNext: true,            /* 答对是否自动进入下一题（全局偏好，默认开） */
     toastTimer: null,
     booting: true,             /* 启动阶段：同步结果先暂存，进页面后再提示 */
     bootSyncEvent: null,
@@ -164,6 +165,16 @@
     /* 已经是默认档时「默认」按钮没有意义，置灰 */
     if ($('btnStemReset')) $('btnStemReset').disabled = (i === STEM_DEFAULT);
     if (save) Store.StemSize.set(i);
+  }
+
+  /**
+   * 答对自动下一题。存全局偏好（不分题库），只在本机，不进同步快照。
+   * save=false 用于「打开设置弹窗时按当前值回填」——不重复写盘。
+   */
+  function applyAutoNext(on, save) {
+    state.autoNext = !!on;
+    if ($('optAutoNext')) $('optAutoNext').checked = state.autoNext;
+    if (save) Store.AutoNext.set(state.autoNext);
   }
 
   /* ------------------------------------------------------------ 全屏
@@ -997,8 +1008,10 @@
     /* 这一组全部答完才落库 + 同步一次；中途退出不写任何数据 */
     if (allAnswered(s) && commitSession(s)) requestSync(true);
 
-    if (correct && !isLast) {
-      /* 答对且不是最后一题：不停顿，直接进入下一题（不展示「回答正确」过渡） */
+    if (correct && !isLast && state.autoNext) {
+      /* 答对且不是最后一题：不停顿，直接进入下一题（不展示「回答正确」过渡）。
+         关掉「答对自动下一题」后走下面的停留分支，与答错一致：
+         展示正确答案与解析，手动点「下一题」。 */
       s.index = index + 1;
       renderQuestion();
       pulseScore();
@@ -1609,6 +1622,7 @@
     /* 刷题设置弹窗：暗色模式 / 题干字号 / 全屏 */
     $('btnQuizSettings').addEventListener('click', function () {
       applyStemSize(state.stemStep, false);   /* 打开时按当前值刷新按钮状态 */
+      applyAutoNext(state.autoNext, false);
       updateFullscreenBtn();
       $('quizSetModal').hidden = false;
     });
@@ -1622,6 +1636,9 @@
     });
     $('btnStemPlus').addEventListener('click', function () {
       applyStemSize(state.stemStep + 1, true);
+    });
+    $('optAutoNext').addEventListener('change', function (e) {
+      applyAutoNext(e.target.checked, true);
     });
     $('btnStemReset').addEventListener('click', function () {
       applyStemSize(STEM_DEFAULT, true);
@@ -1963,6 +1980,8 @@
     applySectionMode(Store.SectionMode.get(), false);
     /* 题干字号：读缓存（默认标准档） */
     applyStemSize(Store.StemSize.get(STEM_STEPS.length - 1, STEM_DEFAULT), false);
+    /* 答对自动下一题：读缓存（默认开启） */
+    applyAutoNext(Store.AutoNext.get(), false);
     updateFullscreenBtn();
     renderThemeBtn();
     syncThemeColor();

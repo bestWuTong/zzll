@@ -1159,12 +1159,15 @@ svg { display: block; }
   transition: background 0.18s, border-color 0.18s;
 }
 .mc-box svg { width: 13px; height: 13px; color: #fff; opacity: 0; transition: opacity 0.14s; }
-.modal-check input:checked + .mc-box {
+.modal-check input:checked + .mc-box,
+.set-check input:checked + .mc-box {
   background: var(--accent);
   border-color: var(--accent);
 }
-.modal-check input:checked + .mc-box svg { opacity: 1; }
-.modal-check input:focus-visible + .mc-box { box-shadow: 0 0 0 3px var(--accent-soft); }
+.modal-check input:checked + .mc-box svg,
+.set-check input:checked + .mc-box svg { opacity: 1; }
+.modal-check input:focus-visible + .mc-box,
+.set-check input:focus-visible + .mc-box { box-shadow: 0 0 0 3px var(--accent-soft); }
 .mc-text { font-size: 14px; font-weight: 500; line-height: 1.35; }
 
 /* 选项组的小标题 */
@@ -1285,6 +1288,21 @@ html[data-theme="dark"] .rc-arrow { color: #6cb6ff; }
 .set-round:active { transform: scale(0.92); }
 .set-round:disabled { opacity: 0.35; cursor: not-allowed; color: var(--text-3); }
 .set-round:disabled:hover { border-color: var(--line); }
+
+/* 设置弹窗里的勾选行：整行都能点，勾选框贴右。
+   input 用 .modal-check 那套隐藏方式，勾选框本体是 .mc-box。 */
+.set-row.set-check { position: relative; cursor: pointer; }
+.set-row.set-check input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.set-row.set-check .mc-box { flex: none; }
+/* 悬停时整行变浅色底，作为「这一整行可点」的反馈；
+   不给勾选框单独加 hover 改色 —— 会和选中态的蓝底冲突 */
+.set-row.set-check:hover .set-label { color: var(--text); }
 
 /* 「默认」复位按钮：与圆形按钮同高同描边，但文字是两个汉字，用胶囊形。
    已经是默认档时置灰（disabled），状态一眼可见。 */
