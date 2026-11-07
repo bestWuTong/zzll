@@ -57,6 +57,33 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
+/* 护眼主题（绿豆沙的降饱和版）：色相还是那抹柔和的绿（≈115°），
+   但饱和度从 #C7EDCC 的 51% 压到 25% 左右 —— 原版底太绿、也太暗，
+   会让次要文字对比度掉到 3.96、强调蓝掉到 3.67，双双跌破 WCAG AA。
+   前景随之加深：正文 12.3:1、次要 5.0:1、强调蓝 4.9:1，全部达标。
+   语义色也在绿底上略作加深，避免和底色混成一片。 */
+html[data-theme="eye"] {
+  --bg: #dfe9da;
+  --bg-elevated: #ffffff;
+  --card: #ffffff;
+  --text: #22261f;
+  --text-2: #5c6357;
+  --text-3: #737b6b;
+  --line: rgba(0, 0, 0, 0.10);
+  --line-strong: rgba(0, 0, 0, 0.17);
+  --accent: #0060c0;
+  --accent-soft: rgba(0, 96, 192, 0.12);
+  --green: #2c9c4a;
+  --green-soft: rgba(44, 156, 74, 0.14);
+  --red: #d63a2f;
+  --red-soft: rgba(214, 58, 47, 0.12);
+  --orange: #b8730a;
+  --orange-soft: rgba(184, 115, 10, 0.14);
+  --shadow-1: 0 1px 2px rgba(28, 44, 30, 0.06), 0 6px 20px rgba(28, 44, 30, 0.07);
+  --shadow-2: 0 2px 6px rgba(28, 44, 30, 0.08), 0 14px 40px rgba(28, 44, 30, 0.12);
+  color-scheme: light;
+}
+
 /* ------------------------------------------------- 主题切换的圆形遮罩动画
    Telegram / Material 同款：新主题以点击位置为圆心扩散露出。
    关掉默认的整页交叉淡入，让 ::view-transition-new(root) 只受 clip-path 控制。 */
@@ -151,7 +178,7 @@ svg { display: block; }
 }
 .hero-heading { min-width: 0; }
 
-/* 右上角工具区：题库切换 + 暗色模式切换。作为下拉菜单的定位容器。 */
+/* 右上角工具区：题库切换 + 主题切换 + 全屏。作为下拉菜单的定位容器。 */
 .hero-tools {
   position: relative;
   flex: none;

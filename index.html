@@ -16,19 +16,20 @@
   /* 主题：显式选择优先，否则跟随系统。
      必须放在这里同步执行——在首帧绘制前把 data-theme 打上去，避免先闪一下亮色。 */
   (function () {
+    /* 三套主题的背景色，同时用于地址栏（与 css 里的 --bg 保持一致） */
+    var BG = { light: '#f5f5f7', eye: '#dfe9da', dark: '#242428' };
     var theme;
     try {
       var saved = localStorage.getItem('zzll.theme.v1');
-      if (saved === 'dark' || saved === 'light') theme = saved;
+      if (saved && BG[saved]) theme = saved;
     } catch (e) { /* 隐私模式读不到 localStorage，退回系统偏好 */ }
     if (!theme) {
       theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
         ? 'dark' : 'light';
     }
     document.documentElement.setAttribute('data-theme', theme);
-    /* 同步浏览器地址栏配色（此处的色值与 css 里的 --bg 保持一致） */
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', theme === 'dark' ? '#242428' : '#f5f5f7');
+    if (meta) meta.setAttribute('content', BG[theme] || BG.light);
   })();
 
   /* 启动遮罩：记录计时起点，并提供隐藏方法。
@@ -67,7 +68,7 @@
           <p class="hero-sub">判断题专项 · 把易错点练成肌肉记忆</p>
         </div>
 
-        <!-- 右侧工具区：题库切换 + 暗色模式切换 -->
+        <!-- 右侧工具区：题库切换 + 主题切换 + 全屏 -->
         <div class="hero-tools" id="heroTools">
           <div class="bank-switch" id="bankSwitch">
             <button class="bank-btn" id="bankBtn" type="button"
@@ -90,7 +91,7 @@
             </svg>
           </button>
 
-          <button class="theme-btn" id="themeBtn" type="button" aria-label="切换到暗色模式" title="切换到暗色模式">
+          <button class="theme-btn" id="themeBtn" type="button" aria-label="切换主题" title="切换主题">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
                  stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>
@@ -338,7 +339,7 @@
   </div>
 </div>
 
-<!-- ============ 弹窗：刷题设置（暗色模式 / 题干字号 / 全屏） ============ -->
+<!-- ============ 弹窗：刷题设置（主题 / 题干字号 / 自动下一题 / 全屏） ============ -->
 <div class="modal" id="quizSetModal" hidden>
   <div class="modal-mask" data-close="1"></div>
   <div class="modal-card modal-sync modal-set" role="dialog" aria-modal="true" aria-label="设置">
@@ -353,8 +354,8 @@
       </div>
 
       <div class="set-row">
-        <span class="set-label">暗色模式</span>
-        <button class="theme-btn" id="themeBtnQuiz" type="button" aria-label="切换到暗色模式" title="切换到暗色模式">
+        <span class="set-label">主题<em class="set-value" id="setThemeValue">浅色</em></span>
+        <button class="theme-btn" id="themeBtnQuiz" type="button" aria-label="切换主题" title="切换主题">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
                stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"></path>

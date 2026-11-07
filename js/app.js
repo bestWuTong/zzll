@@ -91,7 +91,7 @@
     state.toastTimer = setTimeout(function () { el.hidden = true; }, 2400);
   }
 
-  /* -------------------------------------------------------- 主题（暗色/浅色）
+  /* ------------------------------------------- 主题（浅色 / 护眼 / 深色）
      选择存在 zzll.theme.v1；没存过就跟随系统偏好（首帧前的内联脚本已处理初始值）。
      切换用 View Transitions 做 Telegram 同款的圆形遮罩扩散动画。 */
   var THEME_KEY = 'zzll.theme.v1';
@@ -101,6 +101,24 @@
     'stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.1"></circle>' +
     '<path d="M12 2.6v2.3M12 19.1v2.3M4.5 4.5l1.6 1.6M17.9 17.9l1.6 1.6M2.6 12h2.3M19.1 12h2.3' +
     'M4.5 19.5l1.6-1.6M17.9 6.1l1.6-1.6"></path></svg>';
+
+  /* 叶子：护眼主题的符号。图标一律表示「点了会变成什么」，
+     三态循环下依次是 浅色→(叶子)、护眼→(月亮)、深色→(太阳)。 */
+  var ICON_LEAF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2' +
+    'c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"></path>' +
+    '<path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"></path></svg>';
+
+  /* 三套主题，点击按这个顺序循环：浅色 → 护眼 → 深色 → 浅色 */
+  var THEME_ORDER = ['light', 'eye', 'dark'];
+  var THEME_NAME = { light: '浅色', eye: '护眼', dark: '深色' };
+  /* key 是「当前主题」，value 是「下一个主题的图标」——按钮永远预览下一步 */
+  var THEME_ICON = { light: ICON_LEAF, eye: ICON_MOON, dark: ICON_SUN };
+
+  function nextTheme(t) {
+    var i = THEME_ORDER.indexOf(t);
+    return THEME_ORDER[(i < 0 ? 0 : i + 1) % THEME_ORDER.length];
+  }
 
   /* 全屏图标：四角向外 = 可进入全屏；四角内收 = 当前已全屏，点了退出 */
   var ICON_FS_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" ' +
@@ -115,20 +133,21 @@
   function savedTheme() {
     try {
       var v = window.localStorage.getItem(THEME_KEY);
-      return v === 'dark' || v === 'light' ? v : null;
+      return THEME_ORDER.indexOf(v) > -1 ? v : null;
     } catch (e) {
       return null;
     }
   }
 
   function currentTheme() {
-    return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    var t = document.documentElement.getAttribute('data-theme');
+    return THEME_ORDER.indexOf(t) > -1 ? t : 'light';
   }
 
   function renderThemeBtn() {
-    var dark = currentTheme() === 'dark';
-    var label = dark ? '切换到浅色模式' : '切换到暗色模式';
-    var svg = dark ? ICON_SUN : ICON_MOON;
+    var t = currentTheme();
+    var label = '切换到' + THEME_NAME[nextTheme(t)] + '模式';
+    var svg = THEME_ICON[t];
     /* 首页右上角 + 刷题设置弹窗里各一个，状态与图标必须一致 */
     ['themeBtn', 'themeBtnQuiz'].forEach(function (id) {
       var btn = $(id);
@@ -137,6 +156,8 @@
       btn.setAttribute('aria-label', label);
       btn.setAttribute('title', label);
     });
+    /* 设置弹窗里「主题」那一行右侧的当前值 */
+    if ($('setThemeValue')) $('setThemeValue').textContent = THEME_NAME[t];
   }
 
   /* ------------------------------------------------ 题干字号（只影响题干）
@@ -245,8 +266,9 @@
     syncThemeColor();
   }
 
+  /** 点击循环：浅色 → 护眼 → 深色 → 浅色 */
   function toggleTheme(evt) {
-    var next = currentTheme() === 'dark' ? 'light' : 'dark';
+    var next = nextTheme(currentTheme());
     try { window.localStorage.setItem(THEME_KEY, next); } catch (e) { /* 隐私模式忽略 */ }
 
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1406,7 +1428,7 @@
 
   /* ------------------------------------------------------------- 事件绑定 */
   function bind() {
-    /* 暗色模式切换 */
+    /* 主题切换（浅色 → 护眼 → 深色 循环） */
     $('themeBtn').addEventListener('click', toggleTheme);
 
     /* 窗口尺寸变化后重新贴合开关的 thumb（字体/换行可能改变按钮宽度） */
@@ -1619,7 +1641,7 @@
     $('btnNext').addEventListener('click', goNext);
     $('btnPrev').addEventListener('click', goPrev);
 
-    /* 刷题设置弹窗：暗色模式 / 题干字号 / 全屏 */
+    /* 刷题设置弹窗：主题 / 题干字号 / 自动下一题 / 全屏 */
     $('btnQuizSettings').addEventListener('click', function () {
       applyStemSize(state.stemStep, false);   /* 打开时按当前值刷新按钮状态 */
       applyAutoNext(state.autoNext, false);
