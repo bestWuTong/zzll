@@ -1267,27 +1267,43 @@ html[data-theme="dark"] .rc-arrow { color: #6cb6ff; }
 }
 .set-value { font-size: 12.5px; font-style: normal; font-weight: 500; color: var(--text-3); }
 .set-btns { display: inline-flex; gap: 8px; flex: none; }
-.set-round {
-  width: 36px;
+/* 设置弹窗右侧的所有按钮共用一套外观 —— 尺寸、底色、描边、文字/图标颜色、
+   悬停与按下的动效，全部对齐「暗色模式」那个圆形按钮（.modal-set .theme-btn），
+   这样四行看起来是同一套控件。
+   带文字的（默认 / 进入全屏）用胶囊形，纯符号的（A− / A+）用正圆；
+   形状不同只是因为文字放不进圆里，其余属性完全一致。 */
+.set-btn {
+  flex: none;
+  min-width: 36px;
   height: 36px;
+  padding: 0 13px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 500;
   line-height: 1;
-  color: var(--text);
-  /* 用 --bg 而不是 --card：弹窗卡片本身就是 --card，
-     同色会让圆形按钮在暗色下几乎看不见（.modal-opt 也是这个做法） */
+  color: var(--text-2);
+  /* 弹窗卡片本身就是 --card，同色会让控件在暗色下看不见（.modal-opt 也是这个做法） */
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 50%;
+  border-radius: 980px;
+  box-shadow: var(--shadow-1);
   transition: color 0.18s, border-color 0.18s, background 0.18s, transform 0.18s;
 }
-.set-round:hover { color: var(--accent); border-color: var(--line-strong); }
-.set-round:active { transform: scale(0.92); }
-.set-round:disabled { opacity: 0.35; cursor: not-allowed; color: var(--text-3); }
-.set-round:disabled:hover { border-color: var(--line); }
+/* A− / A+：正圆，与主题按钮同款 */
+.set-btn.is-round {
+  width: 36px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+}
+.set-btn:hover { color: var(--accent); border-color: var(--line-strong); }
+.set-btn:active { transform: scale(0.92); }
+/* 禁用态（A− 到底 / A+ 到顶 / 已经是默认档）：
+   不透明度取 0.5 而不是 0.35 —— 太淡会让人以为按钮不存在 */
+.set-btn:disabled { opacity: 0.5; cursor: not-allowed; color: var(--text-3); }
+.set-btn:disabled:hover { border-color: var(--line); color: var(--text-3); }
 
 /* 设置弹窗里的勾选行：整行都能点，勾选框贴右。
    input 用 .modal-check 那套隐藏方式，勾选框本体是 .mc-box。 */
@@ -1304,35 +1320,12 @@ html[data-theme="dark"] .rc-arrow { color: #6cb6ff; }
    不给勾选框单独加 hover 改色 —— 会和选中态的蓝底冲突 */
 .set-row.set-check:hover .set-label { color: var(--text); }
 
-/* 「默认」复位按钮：与圆形按钮同高同描边，但文字是两个汉字，用胶囊形。
-   已经是默认档时置灰（disabled），状态一眼可见。 */
-.set-pill {
-  height: 36px;
-  padding: 0 13px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 980px;
-  transition: color 0.18s, border-color 0.18s, background 0.18s, transform 0.18s;
-}
-.set-pill:hover { color: var(--accent); border-color: var(--line-strong); }
-.set-pill:active { transform: scale(0.94); }
-/* 禁用态比圆形按钮稍微明显一点：它在默认档时一直是灰的，
-   太淡会让人以为按钮不存在（0.35 时暗色下描边几乎看不见） */
-.set-pill:disabled { opacity: 0.5; cursor: not-allowed; color: var(--text-3); }
-.set-pill:disabled:hover { border-color: var(--line); }
-/* 弹窗里的主题按钮也用 --bg，和字号按钮视觉一致
+/* 弹窗里的主题按钮也用 --bg，和右侧其它按钮视觉一致
    （首页那个仍是 --card，因为它的底是页面背景） */
 .modal-set .theme-btn { background: var(--bg); }
 
-/* 全屏按钮比默认的 btn 更紧凑，塞得进一行 */
-.btn.set-full { flex: none; padding: 9px 16px; font-size: 14px; }
+/* 副标题删掉后标题离第一行偏近，补一点下边距，让行距与各项之间一致 */
+.modal-set .modal-head { margin-bottom: 6px; }
 
 .sync-scroll {
   max-height: 86vh;
@@ -1589,6 +1582,9 @@ body.is-quiz .sync-bubble { bottom: 92px; }
   .hero-tools { order: 1; margin-left: auto; gap: 8px; }
   .theme-btn,
   .tool-btn { width: 32px; height: 32px; }
+  /* 设置弹窗里的控件同步缩到 32px，与主题按钮保持一致 */
+  .set-btn { height: 32px; min-width: 32px; padding: 0 11px; font-size: 12.5px; }
+  .set-btn.is-round { width: 32px; min-width: 0; }
   .theme-btn svg,
   .tool-btn svg { width: 16px; height: 16px; }
   .bank-switch { gap: 6px; }
