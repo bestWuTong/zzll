@@ -474,6 +474,18 @@ svg { display: block; }
   font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
   line-height: 1.35;
 }
+/* 长标题的上级路径（章 · 节 · 组）：小字面包屑，与主标题分离。
+   只在题库数据带 path 时出现（目前是纸质完整版），其它题库不受影响。 */
+.chapter-path {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+  color: var(--text-3);
+}
+.chapter-leaf { display: block; }
 .chapter-meta { display: block; font-size: 13px; color: var(--text-2); line-height: 1.35; }
 
 .chapter-ring { position: relative; width: 42px; height: 42px; flex: none; }

@@ -511,10 +511,21 @@
       } else if (st.answered > 0) {
         meta += ' · 已练 ' + st.answered + ' · 未完成';
       }
+      /* 章节名可能是一整条标题路径（纸质完整版有 4 层，最长 106 字）：
+         上级路径用小字面包屑，最后一级作主标题。没有 path 的题库保持原样。 */
+      var path = (ch.path && ch.path.length) ? ch.path : [ch.title];
+      var leaf = path[path.length - 1];
+      var crumb = path.length > 1 ? path.slice(0, -1).join(' · ') : '';
+      var nameHtml = crumb
+        ? '<span class="chapter-path">' + esc(crumb) + '</span>' +
+          '<span class="chapter-leaf">' + esc(leaf) + '</span>'
+        : esc(leaf);
+
       return '' +
-        '<button class="chapter-item" type="button" data-chapter="' + esc(ch.id) + '">' +
+        '<button class="chapter-item" type="button" data-chapter="' + esc(ch.id) + '" ' +
+                'title="' + esc(ch.title) + '">' +
           '<span class="chapter-main">' +
-            '<span class="chapter-name">' + esc(ch.title) + '</span>' +
+            '<span class="chapter-name">' + nameHtml + '</span>' +
             '<span class="chapter-meta">' + meta + '</span>' +
           '</span>' +
           chapterRing(st, done) +
