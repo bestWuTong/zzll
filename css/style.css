@@ -1632,7 +1632,8 @@ body.is-quiz .sync-bubble { bottom: 92px; }
   .bank-switch { gap: 6px; }
   .hero-heading { order: 2; flex: 1 1 100%; }
   .bank-btn { padding: 7px 10px 7px 12px; font-size: 13px; }
-  .bank-btn-label { max-width: 72px; }
+  /* 5 个字的简称（超格完整版）也要放得下，72px 会刚好卡在边缘被省略 */
+  .bank-btn-label { max-width: 86px; }
   .bank-menu { width: calc(100vw - 32px); }
   .quick-card { padding: 15px 15px 14px; }
   .quick-title { font-size: 16px; }

@@ -3,12 +3,12 @@ window.ZZLL_BANKS = window.ZZLL_BANKS || {};
 window.ZZLL_BANKS["chaogev2"] = {
   "id": "chaogev2",
   "name": "超格政治理论排坑手册纸质完整版",
-  "shortName": "完整版",
+  "shortName": "超格完整版",
   "order": 3,
   "meta": {
     "version": "2.0.0",
     "source": "超格政治理论排坑题库完整版",
-    "generatedAt": "2026-11-09 23:33:20",
+    "generatedAt": "2026-11-10 10:07:20",
     "chapterCount": 84,
     "totalQuestions": 1308
   },
