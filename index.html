@@ -48,6 +48,17 @@
   };
   setTimeout(window.hideBoot, 8000);
 </script>
+
+<!-- 百度统计：动态插入 hm.js，异步加载，不阻塞首屏 -->
+<script>
+  var _hmt = _hmt || [];
+  (function () {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?54b3a367ef5432918926706adccd7320";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+  })();
+</script>
 </head>
 <body>
 
